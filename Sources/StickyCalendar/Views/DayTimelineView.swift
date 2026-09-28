@@ -17,9 +17,9 @@ struct DayTimelineView: View {
     @State private var editingID: String?
     @State private var scrollOffset: CGFloat = 0
     @State private var viewportHeight: CGFloat = 0
+    @State private var scrollBridge = ScrollBridge()
 
     private static let space = "timeline"
-    private static let nowAnchor = "now"
     private let gutter: CGFloat = 44
     private let trailingInset: CGFloat = 8
     /// Room above 00:00 and below 24:00 so their labels aren't clipped.
@@ -29,22 +29,20 @@ struct DayTimelineView: View {
         let geo = TimelineGeometry(dayStart: store.day)
         GeometryReader { viewport in
             let width = max(viewport.size.width - gutter - trailingInset, 20)
-            ScrollViewReader { reader in
-                ScrollView(.vertical) {
-                    SwiftUI.TimelineView(.everyMinute) { context in
-                        content(geo, width: width, now: context.date)
-                            .onChange(of: context.date) { _, now in reportNowVisibility(geo, now: now) }
-                    }
-                    .padding(.vertical, verticalInset)
-                    .background(ScrollObserver { offset, height in
-                        scrollOffset = offset
-                        viewportHeight = height
-                        reportNowVisibility(geo, now: Date())
-                    })
+            ScrollView(.vertical) {
+                SwiftUI.TimelineView(.everyMinute) { context in
+                    content(geo, width: width, now: context.date)
+                        .onChange(of: context.date) { _, now in reportNowVisibility(geo, now: now) }
                 }
-                .onAppear { scroll(reader, to: store.scrollRequest.target) }
-                .onChange(of: store.scrollRequest) { _, request in scroll(reader, to: request.target) }
+                .padding(.vertical, verticalInset)
+                .background(ScrollObserver(bridge: scrollBridge) { offset, height in
+                    scrollOffset = offset
+                    viewportHeight = height
+                    reportNowVisibility(geo, now: Date())
+                })
             }
+            .onAppear { perform(store.scrollRequest, geo: geo, animated: false) }
+            .onChange(of: store.scrollRequest) { _, request in perform(request, geo: geo, animated: true) }
         }
         .overlay {
             if store.visibleCalendars.isEmpty {
@@ -60,7 +58,6 @@ struct DayTimelineView: View {
         let slots = OverlapLayout.columns(for: store.timedEvents)
         return ZStack(alignment: .topLeading) {
             HourGrid(geometry: geo, gutter: gutter)
-            scrollAnchors(geo, now: now)
             if store.isViewingToday { pastWash(geo, now: now, width: width) }
             creationSurface(geo, width: width)
             ForEach(store.timedEvents) { item in
@@ -76,34 +73,16 @@ struct DayTimelineView: View {
 
     // MARK: Scrolling
 
-    /// Invisible 1-pt markers `ScrollViewReader` can scroll to. `.position` (unlike
-    /// `.offset`) moves the layout frame, which is what `scrollTo` measures.
-    private func scrollAnchors(_ geo: TimelineGeometry, now: Date) -> some View {
-        ZStack(alignment: .topLeading) {
-            ForEach(0...24, id: \.self) { hour in
-                marker(y: geo.y(forHour: hour)).id(TimelineScrollTarget.hour(hour))
-            }
-            ForEach(store.timedEvents) { item in
-                marker(y: geo.frame(for: item).top).id(TimelineScrollTarget.event(item.id))
-            }
-            marker(y: geo.y(for: now)).id(TimelineScrollTarget.now)
+    /// Today's "now" sits a third of the way down; an event just below the top; an hour at the top.
+    private func perform(_ request: ScrollRequest, geo: TimelineGeometry, animated: Bool) {
+        let y = geo.y(for: request.target, events: store.timedEvents, now: Date())
+        let fraction: Double = switch request.target {
+        case .now: 1.0 / 3
+        case .event: 0.1
+        case .hour: 0
         }
-        .allowsHitTesting(false)
-    }
-
-    private func marker(y: Double) -> some View {
-        Color.clear.frame(width: 1, height: 1).position(x: 0.5, y: CGFloat(y))
-    }
-
-    private func scroll(_ reader: ScrollViewProxy, to target: TimelineScrollTarget) {
-        let anchor: UnitPoint = switch target {
-        case .now: UnitPoint(x: 0, y: 0.33)
-        case .event: UnitPoint(x: 0, y: 0.1)
-        case .hour: .top
-        }
-        // Next runloop turn: the target's anchor must be laid out for the new day first.
-        DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: 0.25)) { reader.scrollTo(target, anchor: anchor) }
+        scrollBridge.scroll(animated: animated) { viewport in
+            geo.scrollOffset(showing: y, at: fraction, viewportHeight: viewport, padding: Double(verticalInset))
         }
     }
 

@@ -41,6 +41,34 @@ struct TimelineGeometryTests {
         #expect(abs(g.y(forHour: 24) - 230) < 0.001)
     }
 
+    @Test func scrollOffsetPutsTargetAtFractionOfViewport() {
+        // 14:00 is y=700; a third of a 300-pt viewport is 100 -> offset 600.
+        #expect(g.scrollOffset(showing: 700, at: 1.0 / 3, viewportHeight: 300) == 600)
+        #expect(g.scrollOffset(showing: 700, at: 0, viewportHeight: 300) == 700)
+    }
+
+    @Test func scrollOffsetIsClampedToTheScrollableRange() {
+        #expect(g.scrollOffset(showing: 20, at: 1.0 / 3, viewportHeight: 300) == 0)
+        // Content 1200 tall, viewport 300 -> max offset 900.
+        #expect(g.scrollOffset(showing: 1190, at: 0, viewportHeight: 300) == 900)
+        // Viewport taller than the day: nothing to scroll.
+        #expect(g.scrollOffset(showing: 700, at: 0, viewportHeight: 2000) == 0)
+    }
+
+    @Test func scrollOffsetAccountsForContentPadding() {
+        // 8 pt of padding above 00:00 and below 24:00.
+        #expect(g.scrollOffset(showing: 700, at: 0, viewportHeight: 300, padding: 8) == 708)
+        #expect(g.scrollOffset(showing: 1200, at: 0, viewportHeight: 300, padding: 8) == 916)
+    }
+
+    @Test func resolvesScrollTargetsToPositions() {
+        let events = [event("a", at(9, 30), at(10))]
+        #expect(g.y(for: .now, events: events, now: at(14)) == 700)
+        #expect(g.y(for: .hour(8), events: events, now: at(14)) == 400)
+        #expect(g.y(for: .event("a"), events: events, now: at(14)) == 475)
+        #expect(g.y(for: .event("gone"), events: events, now: at(14)) == 400) // falls back to 08:00
+    }
+
     @Test func tellsWhetherATimeIsInTheScrolledViewport() {
         // Viewport shows 08:00–18:00 (y 400...900).
         #expect(g.isVisible(at(12), scrollOffset: 400, viewportHeight: 500))

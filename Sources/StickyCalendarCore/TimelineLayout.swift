@@ -38,6 +38,26 @@ public struct TimelineGeometry: Sendable {
         return (top, max(bottom - top, minHeight))
     }
 
+    /// Position of a scroll target; an event that no longer exists falls back to 08:00.
+    public func y(for target: TimelineScrollTarget, events: [EventItem], now: Date) -> Double {
+        switch target {
+        case .now:
+            return y(for: now)
+        case .hour(let hour):
+            return y(forHour: hour)
+        case .event(let id):
+            return events.first { $0.id == id }.map { frame(for: $0).top } ?? y(forHour: 8)
+        }
+    }
+
+    /// Scroll offset that places timeline position `y` at `fraction` of the viewport's
+    /// height, clamped to what can actually be scrolled. `padding` is extra space above
+    /// 00:00 and below 24:00 in the scrolled content.
+    public func scrollOffset(showing y: Double, at fraction: Double, viewportHeight: Double, padding: Double = 0) -> Double {
+        let maxOffset = max(0, height + 2 * padding - viewportHeight)
+        return min(max(y + padding - fraction * viewportHeight, 0), maxOffset)
+    }
+
     /// Whether `date` lies within a viewport scrolled down by `scrollOffset` points.
     public func isVisible(_ date: Date, scrollOffset: Double, viewportHeight: Double) -> Bool {
         let y = y(for: date)
