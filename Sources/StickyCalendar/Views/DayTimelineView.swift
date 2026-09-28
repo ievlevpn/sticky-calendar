@@ -2,8 +2,9 @@ import AppKit
 import StickyCalendarCore
 import SwiftUI
 
-/// The day's timeline: hour grid, past-time wash, event blocks, now-line, and all
-/// direct-manipulation gestures (create, move, resize, select, open editor).
+/// The day's timeline: a whole day at a fixed scale inside a vertical scroll view, with
+/// hour grid, past-time wash, event blocks, now-ruler, and all direct-manipulation
+/// gestures (create, move, resize, select, open editor).
 struct DayTimelineView: View {
     let store: CalendarStore
 
@@ -14,45 +15,119 @@ struct DayTimelineView: View {
     @State private var isDraftEditorOpen = false
     /// The existing event whose editor popover is open.
     @State private var editingID: String?
+    @State private var scrollOffset: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
 
     private static let space = "timeline"
-    private let gutter: CGFloat = 42
+    private static let scrollSpace = "timelineScroll"
+    private static let nowAnchor = "now"
+    private let gutter: CGFloat = 44
     private let trailingInset: CGFloat = 8
+    /// Room above 00:00 and below 24:00 so their labels aren't clipped.
+    private let verticalInset: CGFloat = 8
 
     var body: some View {
-        GeometryReader { proxy in
-            let geo = TimelineGeometry(dayStart: store.day, range: store.effectiveRange, height: proxy.size.height)
-            let parts = geo.partition(store.timedEvents)
-            let slots = OverlapLayout.columns(for: parts.visible)
-            let width = max(proxy.size.width - gutter - trailingInset, 20)
-
-            SwiftUI.TimelineView(.everyMinute) { context in
-                ZStack(alignment: .topLeading) {
-                    HourGrid(geometry: geo, gutter: gutter)
-                    if store.isViewingToday { pastWash(geo, now: context.date, width: width) }
-                    creationSurface(geo, width: width)
-                    ForEach(parts.visible) { item in
-                        block(item, slot: slots[item.id] ?? ColumnSlot(column: 0, count: 1),
-                              geo: geo, width: width, now: context.date)
+        let geo = TimelineGeometry(dayStart: store.day)
+        GeometryReader { viewport in
+            let width = max(viewport.size.width - gutter - trailingInset, 20)
+            ScrollViewReader { reader in
+                ScrollView(.vertical) {
+                    SwiftUI.TimelineView(.everyMinute) { context in
+                        content(geo, width: width, now: context.date)
+                            .onChange(of: context.date) { _, now in reportNowVisibility(geo, now: now) }
                     }
-                    if let draft { draftBlock(draft, geo: geo, width: width) }
-                    if store.isViewingToday { nowLine(geo, now: context.date, width: width) }
+                    .padding(.vertical, verticalInset)
+                    .background(GeometryReader { content in
+                        Color.clear.preference(
+                            key: ScrollOffsetKey.self,
+                            value: -content.frame(in: .named(Self.scrollSpace)).minY
+                        )
+                    })
                 }
-                .coordinateSpace(name: Self.space)
-            }
-            .overlay(alignment: .top) { pill(count: parts.earlier.count, label: "earlier").offset(y: -6) }
-            .overlay(alignment: .bottom) { pill(count: parts.later.count, label: "later").offset(y: 6) }
-            .overlay {
-                if store.visibleCalendars.isEmpty {
-                    Text("No calendars selected.\nChoose some in Settings.")
-                        .multilineTextAlignment(.center)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                .coordinateSpace(name: Self.scrollSpace)
+                .onPreferenceChange(ScrollOffsetKey.self) { offset in
+                    scrollOffset = offset
+                    reportNowVisibility(geo, now: Date())
                 }
+                .onAppear {
+                    viewportHeight = viewport.size.height
+                    scroll(reader, to: store.scrollRequest.target)
+                }
+                .onChange(of: viewport.size.height) { _, height in
+                    viewportHeight = height
+                    reportNowVisibility(geo, now: Date())
+                }
+                .onChange(of: store.scrollRequest) { _, request in scroll(reader, to: request.target) }
             }
         }
-        .padding(.top, 10)
-        .padding(.bottom, 12)
+        .overlay {
+            if store.visibleCalendars.isEmpty {
+                Text("No calendars selected.\nChoose some in Settings.")
+                    .multilineTextAlignment(.center)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func content(_ geo: TimelineGeometry, width: CGFloat, now: Date) -> some View {
+        let slots = OverlapLayout.columns(for: store.timedEvents)
+        return ZStack(alignment: .topLeading) {
+            HourGrid(geometry: geo, gutter: gutter)
+            scrollAnchors(geo, now: now)
+            if store.isViewingToday { pastWash(geo, now: now, width: width) }
+            creationSurface(geo, width: width)
+            ForEach(store.timedEvents) { item in
+                block(item, slot: slots[item.id] ?? ColumnSlot(column: 0, count: 1),
+                      geo: geo, width: width, now: now)
+            }
+            if let draft { draftBlock(draft, geo: geo, width: width) }
+            if store.isViewingToday { nowRuler(geo, now: now, width: width) }
+        }
+        .frame(width: gutter + width + trailingInset, height: CGFloat(geo.height), alignment: .topLeading)
+        .coordinateSpace(name: Self.space)
+    }
+
+    // MARK: Scrolling
+
+    /// Invisible 1-pt markers `ScrollViewReader` can scroll to. `.position` (unlike
+    /// `.offset`) moves the layout frame, which is what `scrollTo` measures.
+    private func scrollAnchors(_ geo: TimelineGeometry, now: Date) -> some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(0...24, id: \.self) { hour in
+                marker(y: geo.y(forHour: hour)).id(TimelineScrollTarget.hour(hour))
+            }
+            ForEach(store.timedEvents) { item in
+                marker(y: geo.frame(for: item).top).id(TimelineScrollTarget.event(item.id))
+            }
+            marker(y: geo.y(for: now)).id(TimelineScrollTarget.now)
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func marker(y: Double) -> some View {
+        Color.clear.frame(width: 1, height: 1).position(x: 0.5, y: CGFloat(y))
+    }
+
+    private func scroll(_ reader: ScrollViewProxy, to target: TimelineScrollTarget) {
+        let anchor: UnitPoint = switch target {
+        case .now: UnitPoint(x: 0, y: 0.33)
+        case .event: UnitPoint(x: 0, y: 0.1)
+        case .hour: .top
+        }
+        // Next runloop turn: the target's anchor must be laid out for the new day first.
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.25)) { reader.scrollTo(target, anchor: anchor) }
+        }
+    }
+
+    private func reportNowVisibility(_ geo: TimelineGeometry, now: Date) {
+        let visible = geo.isVisible(
+            now,
+            scrollOffset: Double(scrollOffset - verticalInset),
+            viewportHeight: Double(viewportHeight)
+        )
+        if store.isNowOnScreen != visible { store.isNowOnScreen = visible }
     }
 
     // MARK: Layers
@@ -66,16 +141,25 @@ struct DayTimelineView: View {
             .allowsHitTesting(false)
     }
 
+    /// Red line across the timeline with the current time in a capsule over the hour labels.
     @ViewBuilder
-    private func nowLine(_ geo: TimelineGeometry, now: Date, width: CGFloat) -> some View {
+    private func nowRuler(_ geo: TimelineGeometry, now: Date, width: CGFloat) -> some View {
         let y = CGFloat(geo.y(for: now))
         if y >= 0 && y <= CGFloat(geo.height) {
             HStack(spacing: 0) {
-                Circle().fill(Color.red).frame(width: 7, height: 7)
+                Text(now.formatted(date: .omitted, time: .shortened))
+                    .font(.system(size: 9, weight: .bold).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Color.red))
+                    .frame(width: gutter, alignment: .trailing)
                 Rectangle().fill(Color.red).frame(height: 1.5)
             }
-            .frame(width: width + 4)
-            .offset(x: gutter - 4, y: y - 3.5)
+            .frame(width: gutter + width, height: 14)
+            .offset(y: y - 7)
             .allowsHitTesting(false)
         }
     }
@@ -201,21 +285,6 @@ struct DayTimelineView: View {
             }
     }
 
-    @ViewBuilder
-    private func pill(count: Int, label: String) -> some View {
-        if count > 0 {
-            Button { store.expandRangeToFitAll() } label: {
-                Text("+\(count) \(label)")
-                    .font(.system(size: 10, weight: .semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(.quaternary))
-            }
-            .buttonStyle(.plain)
-            .help("Show all of today's events")
-        }
-    }
-
     /// Writable calendars, plus the event's own calendar so the picker can show it.
     private func editorCalendars(for item: EventItem) -> [CalendarInfo] {
         store.calendars.filter { $0.isWritable || $0.id == item.calendarID }
@@ -228,8 +297,7 @@ struct HourGrid: View {
 
     var body: some View {
         Canvas { context, size in
-            let range = geometry.range
-            for hour in range.start...range.end {
+            for hour in 0...24 {
                 let y = CGFloat(geometry.y(forHour: hour))
                 var line = Path()
                 line.move(to: CGPoint(x: gutter, y: y))
@@ -241,7 +309,7 @@ struct HourGrid: View {
                     .foregroundStyle(.secondary)
                 context.draw(context.resolve(label), at: CGPoint(x: gutter - 6, y: y), anchor: .trailing)
 
-                if hour < range.end {
+                if hour < 24 {
                     let mid = (y + CGFloat(geometry.y(forHour: hour + 1))) / 2
                     var half = Path()
                     half.move(to: CGPoint(x: gutter, y: mid))
@@ -289,4 +357,9 @@ struct EventBlockView: View {
         .overlay(shape.strokeBorder(color, lineWidth: isSelected ? 1.5 : 0))
         .opacity(isPast ? 0.5 : 1)
     }
+}
+
+private struct ScrollOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }

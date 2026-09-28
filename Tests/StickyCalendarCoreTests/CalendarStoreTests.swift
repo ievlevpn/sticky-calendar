@@ -89,13 +89,48 @@ struct CalendarStoreTests {
         #expect(store.day == at(0, day: 32)) // still Oct 2 ("Sep 32" normalizes to Oct 2)
     }
 
-    @Test func expandingRangeIsClearedByNavigation() {
-        source.stored = [event("early", at(6), at(7))]
+    // MARK: Scrolling
+
+    @Test func todayOpensScrolledToNow() {
         let store = makeStore()
-        store.expandRangeToFitAll()
-        #expect(store.effectiveRange == HourRange(start: 6, end: 20))
+        #expect(store.scrollRequest.target == .now)
+    }
+
+    @Test func otherDaysOpenAtFirstTimedEventOrMorning() {
+        source.stored = [
+            event("allday", at(0, day: 29), at(0, day: 30), allDay: true),
+            event("late", at(15, day: 29), at(16, day: 29)),
+            event("first", at(7, day: 29), at(8, day: 29)),
+        ]
+        let store = makeStore()
         store.goToDay(offset: 1)
-        #expect(store.effectiveRange == HourRange(start: 8, end: 20))
+        #expect(store.scrollRequest.target == .event("first"))
+        store.goToDay(offset: 1)
+        #expect(store.scrollRequest.target == .hour(8))
+    }
+
+    @Test func jumpToNowReturnsToTodayAndRequestsANewScroll() {
+        let store = makeStore()
+        let before = store.scrollRequest.id
+        store.jumpToNow() // already on today: must still re-scroll
+        #expect(store.scrollRequest.id != before)
+        #expect(store.scrollRequest.target == .now)
+
+        store.goToDay(offset: 2)
+        store.jumpToNow()
+        #expect(store.isViewingToday)
+        #expect(store.scrollRequest.target == .now)
+    }
+
+    @Test func jumpToNowIsOfferedOnlyWhenNowIsOutOfSight() {
+        let store = makeStore()
+        store.isNowOnScreen = true
+        #expect(!store.offersJumpToNow)
+        store.isNowOnScreen = false
+        #expect(store.offersJumpToNow)
+        store.isNowOnScreen = true
+        store.goToDay(offset: 1)
+        #expect(store.offersJumpToNow)
     }
 
     // MARK: Drafts and creation

@@ -6,8 +6,7 @@ import Observation
 @Observable
 public final class AppSettings {
     private enum Key {
-        static let startHour = "startHour"
-        static let endHour = "endHour"
+        static let isPinned = "isPinned"
         static let hiddenCalendarIDs = "hiddenCalendarIDs"
         static let opacity = "opacity"
     }
@@ -16,23 +15,22 @@ public final class AppSettings {
 
     @ObservationIgnored private let defaults: UserDefaults
 
-    public private(set) var hourRange: HourRange
+    /// Pinned: floats above other windows on every Space. Unpinned: an ordinary window.
+    public private(set) var isPinned: Bool
     public private(set) var hiddenCalendarIDs: Set<String>
     public private(set) var opacity: Double
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        hourRange = HourRange(
-            start: defaults.object(forKey: Key.startHour) as? Int ?? HourRange.standard.start,
-            end: defaults.object(forKey: Key.endHour) as? Int ?? HourRange.standard.end
-        )
+        isPinned = defaults.object(forKey: Key.isPinned) as? Bool ?? true
         hiddenCalendarIDs = Set(defaults.stringArray(forKey: Key.hiddenCalendarIDs) ?? [])
         opacity = Self.clampOpacity(defaults.object(forKey: Key.opacity) as? Double ?? 0.92)
     }
 
-    public func setStartHour(_ hour: Int) { store(hourRange.withStart(hour)) }
-
-    public func setEndHour(_ hour: Int) { store(hourRange.withEnd(hour)) }
+    public func setPinned(_ pinned: Bool) {
+        isPinned = pinned
+        defaults.set(pinned, forKey: Key.isPinned)
+    }
 
     public func setCalendar(_ id: String, visible: Bool) {
         if visible { hiddenCalendarIDs.remove(id) } else { hiddenCalendarIDs.insert(id) }
@@ -42,12 +40,6 @@ public final class AppSettings {
     public func setOpacity(_ value: Double) {
         opacity = Self.clampOpacity(value)
         defaults.set(opacity, forKey: Key.opacity)
-    }
-
-    private func store(_ range: HourRange) {
-        hourRange = range
-        defaults.set(range.start, forKey: Key.startHour)
-        defaults.set(range.end, forKey: Key.endHour)
     }
 
     private static func clampOpacity(_ value: Double) -> Double {

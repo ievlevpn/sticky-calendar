@@ -2,73 +2,31 @@ import Foundation
 import Testing
 @testable import StickyCalendarCore
 
-struct HourRangeTests {
-    @Test func clampsInvalidValues() {
-        #expect(HourRange(start: -3, end: 30) == HourRange(start: 0, end: 24))
-        #expect(HourRange(start: 10, end: 10) == HourRange(start: 10, end: 11))
-        #expect(HourRange(start: 24, end: 24) == HourRange(start: 23, end: 24))
-    }
-
-    @Test func withStartPushesEndOnlyWhenNeeded() {
-        let r = HourRange(start: 8, end: 20)
-        #expect(r.withStart(10) == HourRange(start: 10, end: 20))
-        #expect(r.withStart(21) == HourRange(start: 21, end: 22))
-    }
-
-    @Test func withEndPullsStartOnlyWhenNeeded() {
-        let r = HourRange(start: 8, end: 20)
-        #expect(r.withEnd(18) == HourRange(start: 8, end: 18))
-        #expect(r.withEnd(7) == HourRange(start: 6, end: 7))
-    }
-
-    @Test func datesUseNextMidnightForHour24() {
-        let (s, e) = HourRange(start: 0, end: 24).dates(on: at(0), calendar: utc)
-        #expect(s == at(0))
-        #expect(e == at(0, day: 29))
-    }
-
-    @Test func expandsToIncludeEarlierAndLaterEvents() {
-        let events = [event("a", at(6, 30), at(7)), event("b", at(20), at(21, 10))]
-        let r = HourRange.standard.expanded(toInclude: events, dayStart: at(0), calendar: utc)
-        #expect(r == HourRange(start: 6, end: 22))
-    }
-
-    @Test func expansionClipsEventsCrossingMidnight() {
-        let events = [event("late", at(23), at(1, day: 29)), event("early", at(22, day: 27), at(1))]
-        let r = HourRange.standard.expanded(toInclude: events, dayStart: at(0), calendar: utc)
-        #expect(r == HourRange(start: 0, end: 24))
-    }
-}
-
 struct TimelineGeometryTests {
-    let g = TimelineGeometry(dayStart: at(0), range: HourRange(start: 8, end: 20), height: 600, calendar: utc)
+    let g = TimelineGeometry(dayStart: at(0), pointsPerHour: 50, calendar: utc)
 
-    @Test func mapsTimeToYAndBack() {
-        #expect(g.y(for: at(8)) == 0)
-        #expect(g.y(for: at(14)) == 300)
-        #expect(g.y(for: at(20)) == 600)
-        #expect(g.date(forY: 300) == at(14))
-        #expect(g.y(forHour: 9) == 50)
+    @Test func coversTheWholeDayAtAFixedScale() {
+        #expect(g.height == 1200)
+        #expect(g.y(for: at(0)) == 0)
+        #expect(g.y(for: at(14)) == 700)
+        #expect(g.date(forY: 700) == at(14))
+        #expect(g.y(forHour: 9) == 450)
+        #expect(g.y(forHour: 24) == 1200)
     }
 
-    @Test func frameClipsToRangeAndEnforcesMinimumHeight() {
-        let clipped = g.frame(for: event("x", at(7), at(9)))
-        #expect(clipped.top == 0 && clipped.height == 50)
-        let tiny = g.frame(for: event("y", at(10), at(10, 5)))
+    @Test func scaleDoesNotDependOnWindowSize() {
+        let dense = TimelineGeometry(dayStart: at(0), pointsPerHour: 48, calendar: utc)
+        #expect(dense.y(for: at(1)) == 48)
+        #expect(dense.height == 48 * 24)
+    }
+
+    @Test func frameClipsEventsCrossingMidnightToTheDay() {
+        let late = g.frame(for: event("late", at(23), at(1, day: 29)))
+        #expect(late.top == 1150 && late.height == 50)
+        let early = g.frame(for: event("early", at(22, day: 27), at(1)))
+        #expect(early.top == 0 && early.height == 50)
+        let tiny = g.frame(for: event("tiny", at(10), at(10, 5)))
         #expect(tiny.height == 14)
-    }
-
-    @Test func partitionsEventsOutsideRange() {
-        let early = event("early", at(6), at(7))
-        let edge = event("edge", at(7), at(8))
-        let inside = event("in", at(9), at(10))
-        let straddle = event("straddle", at(19), at(21))
-        let late = event("late", at(20), at(21))
-        let overnight = event("overnight", at(23), at(1, day: 29))
-        let p = g.partition([early, edge, inside, straddle, late, overnight])
-        #expect(p.earlier.map(\.id) == ["early", "edge"])
-        #expect(p.visible.map(\.id) == ["in", "straddle"])
-        #expect(p.later.map(\.id) == ["late", "overnight"])
     }
 
     @Test func dstDayUsesRealElapsedTime() {
@@ -76,10 +34,18 @@ struct TimelineGeometryTests {
         zurich.timeZone = TimeZone(identifier: "Europe/Zurich")!
         // 2026-03-29: clocks jump 02:00 -> 03:00, so the day is 23 hours long.
         let day = zurich.date(from: DateComponents(year: 2026, month: 3, day: 29))!
-        let g = TimelineGeometry(dayStart: day, range: HourRange(start: 0, end: 24), height: 230, calendar: zurich)
+        let g = TimelineGeometry(dayStart: day, pointsPerHour: 10, calendar: zurich)
         let threeAM = zurich.date(bySettingHour: 3, minute: 0, second: 0, of: day)!
         #expect(abs(g.y(for: threeAM) - 20) < 0.001) // 2 real hours at 10 pt/hour
+        #expect(abs(g.height - 230) < 0.001)
         #expect(abs(g.y(forHour: 24) - 230) < 0.001)
+    }
+
+    @Test func tellsWhetherATimeIsInTheScrolledViewport() {
+        // Viewport shows 08:00–18:00 (y 400...900).
+        #expect(g.isVisible(at(12), scrollOffset: 400, viewportHeight: 500))
+        #expect(!g.isVisible(at(7), scrollOffset: 400, viewportHeight: 500))
+        #expect(!g.isVisible(at(19), scrollOffset: 400, viewportHeight: 500))
     }
 }
 

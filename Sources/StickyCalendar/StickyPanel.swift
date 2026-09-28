@@ -2,25 +2,25 @@ import AppKit
 import StickyCalendarCore
 import SwiftUI
 
-/// The floating sticky window: above other windows, on every Space and over full-screen
-/// apps, never activates the app when clicked, remembers its frame.
+/// The sticky window. Pinned (default): above other windows, on every Space and over
+/// full-screen apps. Unpinned (⌃S or the header pin): an ordinary window. Never activates
+/// the app when clicked; remembers its frame.
 @MainActor
 final class StickyPanel: NSPanel, NSWindowDelegate {
     private static let autosaveName = "StickyPanel"
     private let store: CalendarStore
+    private let settings: AppSettings
     private var keyMonitor: Any?
 
     init(store: CalendarStore, settings: AppSettings) {
         self.store = store
+        self.settings = settings
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 280, height: 520),
             styleMask: [.titled, .resizable, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
-        isFloatingPanel = true
-        level = .floating
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         hidesOnDeactivate = false
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
@@ -32,7 +32,12 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
             standardWindowButton(button)?.isHidden = true
         }
 
-        let hosting = NSHostingView(rootView: StickyContentView(store: store, settings: settings))
+        applyPinned()
+        let hosting = NSHostingView(rootView: StickyContentView(
+            store: store,
+            settings: settings,
+            onTogglePin: { [weak self] in self?.togglePinned() }
+        ))
         hosting.sizingOptions = [] // let the user resize freely
         contentView = hosting
         delegate = self
@@ -48,14 +53,30 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
     func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { store.undoManager }
 
     /// Picks up changes made while we were in the background (e.g. access granted in Settings).
-    func windowDidBecomeKey(_ notification: Notification) { store.reload() }
+    /// An unpinned panel is raised explicitly, since clicking it doesn't activate the app.
+    func windowDidBecomeKey(_ notification: Notification) {
+        store.reload()
+        if !settings.isPinned { orderFrontRegardless() }
+    }
+
+    func togglePinned() {
+        settings.setPinned(!settings.isPinned)
+        applyPinned()
+    }
+
+    private func applyPinned() {
+        isFloatingPanel = settings.isPinned
+        level = settings.isPinned ? .floating : .normal
+        collectionBehavior = settings.isPinned ? [.canJoinAllSpaces, .fullScreenAuxiliary] : [.managed]
+    }
 
     private func placeTopRight() {
         guard let visible = NSScreen.main?.visibleFrame else { return }
         setFrameOrigin(NSPoint(x: visible.maxX - frame.width - 20, y: visible.maxY - frame.height - 20))
     }
 
-    /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo — unless a text field is editing.
+    /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning —
+    /// unless a text field is editing.
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let keyCode = event.keyCode
@@ -78,6 +99,8 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
             store.undoManager.undo()
         case (_, [.command, .shift], "z"):
             store.undoManager.redo()
+        case (_, [.control], "s"):
+            togglePinned()
         default:
             return false
         }

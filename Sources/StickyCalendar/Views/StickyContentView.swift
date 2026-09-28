@@ -5,10 +5,11 @@ import SwiftUI
 struct StickyContentView: View {
     let store: CalendarStore
     let settings: AppSettings
+    let onTogglePin: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderView(store: store)
+            HeaderView(store: store, settings: settings, onTogglePin: onTogglePin)
             switch store.access {
             case .granted:
                 AllDayStrip(store: store)

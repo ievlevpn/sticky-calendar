@@ -7,6 +7,19 @@ public struct PendingEdit: Equatable, Sendable {
     public var updated: EventItem
 }
 
+/// Where the timeline should scroll to.
+public enum TimelineScrollTarget: Hashable, Sendable {
+    case now
+    case event(String)
+    case hour(Int)
+}
+
+/// A request to scroll; a new `id` asks again even when the target is unchanged.
+public struct ScrollRequest: Equatable, Sendable {
+    public let id: Int
+    public let target: TimelineScrollTarget
+}
+
 /// The single owner of calendar state for the UI. All reads and writes go through here.
 @MainActor
 @Observable
@@ -17,8 +30,9 @@ public final class CalendarStore {
     public private(set) var timedEvents: [EventItem] = []
     public private(set) var allDayEvents: [EventItem] = []
     public private(set) var calendars: [CalendarInfo] = []
-    /// Set by "+N earlier/later"; cleared when the day changes.
-    public private(set) var rangeOverride: HourRange?
+    public private(set) var scrollRequest = ScrollRequest(id: 0, target: .now)
+    /// Reported by the timeline: whether the now-ruler is inside the visible area.
+    public var isNowOnScreen = true
     public var selectedID: String?
     public var lastError: String?
     public var pendingEdit: PendingEdit?
@@ -48,6 +62,7 @@ public final class CalendarStore {
         day = calendar.startOfDay(for: now())
         source.onChange = { [weak self] in self?.reload() }
         reload()
+        requestScroll()
     }
 
     // MARK: Reading
@@ -60,7 +75,7 @@ public final class CalendarStore {
 
     public func calendarInfo(id: String) -> CalendarInfo? { calendars.first { $0.id == id } }
 
-    public var effectiveRange: HourRange { rangeOverride ?? settings.hourRange }
+    public var offersJumpToNow: Bool { !isViewingToday || !isNowOnScreen }
 
     public func reload() {
         access = source.currentAccess()
@@ -93,6 +108,9 @@ public final class CalendarStore {
         setDay(now())
     }
 
+    /// Back to today, scrolled so the current time is in view (even if already on today).
+    public func jumpToNow() { goToToday() }
+
     public func goToDay(offset: Int) {
         let target = calendar.date(byAdding: .day, value: offset, to: day)!
         followsToday = calendar.isDate(target, inSameDayAs: now())
@@ -105,15 +123,19 @@ public final class CalendarStore {
         if followsToday && day != today { setDay(today) } else { reload() }
     }
 
-    public func expandRangeToFitAll() {
-        rangeOverride = effectiveRange.expanded(toInclude: timedEvents, dayStart: day, calendar: calendar)
-    }
-
     private func setDay(_ date: Date) {
         day = calendar.startOfDay(for: date)
-        rangeOverride = nil
         selectedID = nil
         reload()
+        requestScroll()
+    }
+
+    /// Today opens at the current time; other days at their first timed event, or 08:00.
+    private func requestScroll() {
+        let target: TimelineScrollTarget = isViewingToday
+            ? .now
+            : timedEvents.first.map { .event($0.id) } ?? .hour(8)
+        scrollRequest = ScrollRequest(id: scrollRequest.id + 1, target: target)
     }
 
     // MARK: Editing

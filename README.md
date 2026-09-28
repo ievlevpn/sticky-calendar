@@ -1,7 +1,10 @@
 # Sticky Calendar
 
 A tiny menu-bar app that shows the day's calendar as a floating, always-on-top timeline.
-Drag to create, move and resize events; double-click to edit; ⌫ to delete; ⌘Z to undo.
+Scroll through the day (48 pt per hour — a taller window shows more hours); the red
+ruler marks the current time and the clock button jumps back to it.
+Drag to create, move and resize events; double-click to edit; ⌫ to delete; ⌘Z to undo;
+⌃S (or the pin button) toggles whether the sticky stays on top of other windows.
 
 ## Build
 

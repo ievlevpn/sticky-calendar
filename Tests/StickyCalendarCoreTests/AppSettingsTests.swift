@@ -14,29 +14,28 @@ struct AppSettingsTests {
 
     @Test func usesDefaultsWhenNothingStored() {
         let s = AppSettings(defaults: defaults)
-        #expect(s.hourRange == HourRange(start: 8, end: 20))
+        #expect(s.isPinned)
         #expect(s.hiddenCalendarIDs.isEmpty)
         #expect(s.opacity == 0.92)
     }
 
     @Test func persistsChangesAcrossInstances() {
         let s = AppSettings(defaults: defaults)
-        s.setStartHour(7)
-        s.setEndHour(22)
+        s.setPinned(false)
         s.setCalendar("holidays", visible: false)
         s.setOpacity(0.7)
         let reloaded = AppSettings(defaults: defaults)
-        #expect(reloaded.hourRange == HourRange(start: 7, end: 22))
+        #expect(!reloaded.isPinned)
         #expect(reloaded.hiddenCalendarIDs == ["holidays"])
         #expect(reloaded.opacity == 0.7)
     }
 
-    @Test func clampsOpacityAndKeepsRangeValid() {
+    @Test func clampsOpacity() {
         let s = AppSettings(defaults: defaults)
         s.setOpacity(0.1)
         #expect(s.opacity == 0.5)
-        s.setStartHour(23)
-        #expect(s.hourRange == HourRange(start: 23, end: 24))
+        s.setOpacity(3)
+        #expect(s.opacity == 1)
     }
 
     @Test func showingACalendarAgainRemovesItFromHidden() {

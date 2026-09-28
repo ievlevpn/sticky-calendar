@@ -1,110 +1,48 @@
 import Foundation
 
-/// Whole hours of the day shown on the timeline. `end` is exclusive and may be 24.
-public struct HourRange: Equatable, Sendable {
-    public let start: Int
-    public let end: Int
-
-    /// Clamps to 0...23 for `start` and `start+1...24` for `end`.
-    public init(start: Int, end: Int) {
-        let s = min(max(start, 0), 23)
-        self.start = s
-        self.end = min(max(end, s + 1), 24)
-    }
-
-    public static let standard = HourRange(start: 8, end: 20)
-
-    /// Keeps `end`, pushing it later only if the new start would pass it.
-    public func withStart(_ hour: Int) -> HourRange { HourRange(start: hour, end: max(end, hour + 1)) }
-
-    /// Keeps `start`, pulling it earlier only if the new end would pass it.
-    public func withEnd(_ hour: Int) -> HourRange { HourRange(start: min(start, hour - 1), end: hour) }
-
-    public func dates(on dayStart: Date, calendar: Calendar) -> (start: Date, end: Date) {
-        let s = calendar.date(bySettingHour: start, minute: 0, second: 0, of: dayStart) ?? dayStart
-        let e = end == 24
-            ? calendar.date(byAdding: .day, value: 1, to: dayStart)!
-            : calendar.date(bySettingHour: end, minute: 0, second: 0, of: dayStart)!
-        return (s, e)
-    }
-
-    /// The smallest range containing `self` and the parts of `events` that fall on this day.
-    public func expanded(toInclude events: [EventItem], dayStart: Date, calendar: Calendar) -> HourRange {
-        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)!
-        var lo = start
-        var hi = end
-        for event in events where event.end > dayStart && event.start < dayEnd {
-            let s = max(event.start, dayStart)
-            let e = min(event.end, dayEnd)
-            lo = min(lo, calendar.component(.hour, from: s))
-            if e >= dayEnd {
-                hi = 24
-            } else {
-                let parts = calendar.dateComponents([.hour, .minute, .second], from: e)
-                let roundUp = (parts.minute ?? 0) > 0 || (parts.second ?? 0) > 0
-                hi = max(hi, (parts.hour ?? 0) + (roundUp ? 1 : 0))
-            }
-        }
-        return HourRange(start: lo, end: hi)
-    }
-}
-
-/// Maps between time and vertical position for one day's visible range.
-/// Uses real elapsed time, so a DST day's range is 23 or 25 hours tall without gaps.
+/// Maps between time and vertical position on a day's timeline at a fixed scale.
+/// The timeline covers the whole day; the window scrolls over it. Uses real elapsed time,
+/// so a DST day is 23 or 25 hours tall without gaps.
 public struct TimelineGeometry: Sendable {
+    public static let defaultPointsPerHour: Double = 48
+
     public let dayStart: Date
-    public let range: HourRange
-    public let rangeStart: Date
-    public let rangeEnd: Date
-    public let height: Double
+    public let dayEnd: Date
+    public let pointsPerHour: Double
     private let calendar: Calendar
 
-    public init(dayStart: Date, range: HourRange, height: Double, calendar: Calendar = .autoupdatingCurrent) {
+    public init(dayStart: Date, pointsPerHour: Double = defaultPointsPerHour, calendar: Calendar = .autoupdatingCurrent) {
         self.dayStart = dayStart
-        self.range = range
-        self.height = height
+        self.pointsPerHour = pointsPerHour
         self.calendar = calendar
-        (rangeStart, rangeEnd) = range.dates(on: dayStart, calendar: calendar)
+        dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)!
     }
 
-    public var pointsPerSecond: Double { height / rangeEnd.timeIntervalSince(rangeStart) }
+    public var pointsPerSecond: Double { pointsPerHour / 3600 }
 
-    public func y(for date: Date) -> Double { date.timeIntervalSince(rangeStart) * pointsPerSecond }
+    public var height: Double { y(for: dayEnd) }
 
-    public func date(forY y: Double) -> Date { rangeStart.addingTimeInterval(y / pointsPerSecond) }
+    public func y(for date: Date) -> Double { date.timeIntervalSince(dayStart) * pointsPerSecond }
+
+    public func date(forY y: Double) -> Date { dayStart.addingTimeInterval(y / pointsPerSecond) }
 
     public func y(forHour hour: Int) -> Double {
-        if hour >= 24 { return y(for: calendar.date(byAdding: .day, value: 1, to: dayStart)!) }
+        if hour >= 24 { return height }
         return y(for: calendar.date(bySettingHour: hour, minute: 0, second: 0, of: dayStart) ?? dayStart)
     }
 
-    /// Vertical extent of `event`, clipped to the visible range, never shorter than `minHeight`.
+    /// Vertical extent of `event`, clipped to the day, never shorter than `minHeight`.
     public func frame(for event: EventItem, minHeight: Double = 14) -> (top: Double, height: Double) {
-        let top = y(for: max(event.start, rangeStart))
-        let bottom = y(for: min(event.end, rangeEnd))
+        let top = y(for: max(event.start, dayStart))
+        let bottom = y(for: min(event.end, dayEnd))
         return (top, max(bottom - top, minHeight))
     }
 
-    public func partition(_ events: [EventItem]) -> RangePartition {
-        var result = RangePartition()
-        for event in events {
-            if event.end <= rangeStart && event.start < rangeStart {
-                result.earlier.append(event)
-            } else if event.start >= rangeEnd {
-                result.later.append(event)
-            } else {
-                result.visible.append(event)
-            }
-        }
-        return result
+    /// Whether `date` lies within a viewport scrolled down by `scrollOffset` points.
+    public func isVisible(_ date: Date, scrollOffset: Double, viewportHeight: Double) -> Bool {
+        let y = y(for: date)
+        return y >= scrollOffset && y <= scrollOffset + viewportHeight
     }
-}
-
-public struct RangePartition: Equatable, Sendable {
-    public var visible: [EventItem] = []
-    public var earlier: [EventItem] = []
-    public var later: [EventItem] = []
-    public init() {}
 }
 
 public enum Snap {

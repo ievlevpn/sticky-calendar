@@ -170,3 +170,17 @@ Status item with an SF Symbol calendar icon. Menu: Show/Hide Sticky, Settings…
   confirmation dialog says so.
 - No custom `.icns`; the menu-bar icon is the SF Symbol `calendar.day.timeline.left`.
 - Tests use Swift Testing via `scripts/test.sh` (Command Line Tools lack XCTest).
+
+## Amendments (2026-09-29, after first build — requested by the user)
+
+- The timeline is no longer a fixed hour range scaled to fit: it covers the whole day at
+  48 pt/hour in a vertical scroll view; resizing the window shows more or fewer hours.
+  The "Visible hours" setting and the "+N earlier/later" pills are removed.
+- Today opens scrolled so now sits a third of the way down; other days open at their
+  first timed event, or 08:00. The view does not auto-follow the clock.
+- The now-line is a full-width red ruler with the current time in a capsule over the hour
+  labels. A header clock button (shown when now is off-screen or another day is viewed)
+  jumps to today and scrolls to now; it replaces the "Today" button.
+- ⌃S (and a header pin button) toggles stickiness: pinned = floating on every Space and
+  over full-screen apps (default); unpinned = an ordinary window. Persisted.
+- Dragging an event to the viewport edge does not auto-scroll.

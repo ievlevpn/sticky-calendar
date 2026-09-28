@@ -11,15 +11,6 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Visible hours") {
-                Picker("From", selection: Binding(get: { settings.hourRange.start }, set: settings.setStartHour)) {
-                    ForEach(0..<24, id: \.self) { Text(Self.hourLabel($0)).tag($0) }
-                }
-                Picker("To", selection: Binding(get: { settings.hourRange.end }, set: settings.setEndHour)) {
-                    ForEach(1...24, id: \.self) { Text(Self.hourLabel($0)).tag($0) }
-                }
-            }
-
             Section("Calendars") {
                 if store.calendars.isEmpty {
                     Text("No calendars available.").foregroundStyle(.secondary)
@@ -67,5 +58,4 @@ struct SettingsView: View {
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    private static func hourLabel(_ hour: Int) -> String { String(format: "%02d:00", hour) }
 }
