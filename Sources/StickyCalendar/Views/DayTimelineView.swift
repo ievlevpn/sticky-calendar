@@ -140,8 +140,10 @@ struct DayTimelineView: View {
             EventEditPopover(
                 item: item,
                 calendars: editorCalendars(for: item),
-                onFinish: { result in
-                    if let result { store.requestUpdate(from: item, to: result) }
+                // Merges only the user's changes onto the event's current state,
+                // so anything synced while the editor was open is kept.
+                onFinish: { snapshot, result in
+                    if let result { store.requestEdit(of: snapshot, result: result) }
                 },
                 onDelete: { store.requestDelete(item) },
                 onOpenInCalendar: { SystemLinks.openInCalendar(item) }
@@ -162,7 +164,7 @@ struct DayTimelineView: View {
                 EventEditPopover(
                     item: item,
                     calendars: editorCalendars(for: item),
-                    onFinish: { result in
+                    onFinish: { _, result in
                         draft = nil
                         if let result { store.create(result) }
                     }

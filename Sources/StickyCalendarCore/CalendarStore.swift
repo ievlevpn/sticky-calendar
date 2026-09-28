@@ -31,6 +31,9 @@ public final class CalendarStore {
     @ObservationIgnored private let now: () -> Date
     /// True while the user is "on today"; the view then follows midnight rollover.
     @ObservationIgnored private var followsToday = true
+    /// Old → new `eventIdentifier` for events EventKit re-identified (recreated by undo,
+    /// moved to another calendar), so older undo/redo steps still find them.
+    @ObservationIgnored private var replacedIdentifiers: [String: String] = [:]
 
     public init(
         source: EventSource,
@@ -129,11 +132,18 @@ public final class CalendarStore {
     /// Saves a draft. A draft with a blank title is discarded and nil is returned.
     @discardableResult
     public func create(_ draft: EventItem) -> EventItem? {
-        var item = draft.normalized()
+        let item = draft.normalized()
         guard !item.title.isEmpty else { return nil }
-        item.eventIdentifier = ""
+        return insert(item)
+    }
+
+    /// Saves `item` as a new event (also used to restore a deleted one, whatever its title).
+    private func insert(_ item: EventItem) -> EventItem? {
+        var fresh = item
+        fresh.eventIdentifier = ""
         do {
-            let saved = try source.save(item, span: .thisEvent)
+            let saved = try source.save(fresh, span: .thisEvent)
+            noteReplacement(of: item.eventIdentifier, by: saved.eventIdentifier)
             undoManager.registerUndo(withTarget: self) { store in
                 MainActor.assumeIsolated { store.delete(saved, span: .thisEvent) }
             }
@@ -148,14 +158,32 @@ public final class CalendarStore {
     }
 
     /// Applies an edit, or parks it in `pendingEdit` when a recurring event needs a span choice.
+    /// Only fields that actually changed are cleaned up, so re-saving an event never alters it.
     public func requestUpdate(from original: EventItem, to updated: EventItem) {
-        let updated = updated.normalized()
         guard !original.isReadOnly, updated != original else { return }
+        var cleaned = updated.normalized()
+        if updated.title == original.title { cleaned.title = original.title }
+        guard cleaned != original else { return }
         if original.isRecurring {
-            pendingEdit = PendingEdit(original: original, updated: updated)
+            pendingEdit = PendingEdit(original: original, updated: cleaned)
         } else {
-            update(from: original, to: updated, span: .thisEvent)
+            update(from: original, to: cleaned, span: .thisEvent)
         }
+    }
+
+    /// Commits an editor that was opened on `snapshot`: applies only the fields the user
+    /// changed onto the event's current state, keeping anything synced in meanwhile.
+    public func requestEdit(of snapshot: EventItem, result: EventItem) {
+        guard result != snapshot else { return }
+        let current = timedEvents.first { $0.id == snapshot.id } ?? snapshot
+        var merged = current
+        if result.title != snapshot.title { merged.title = result.title }
+        if result.start != snapshot.start { merged.start = result.start }
+        if result.end != snapshot.end { merged.end = result.end }
+        if result.calendarID != snapshot.calendarID { merged.calendarID = result.calendarID }
+        if result.location != snapshot.location { merged.location = result.location }
+        if result.notes != snapshot.notes { merged.notes = result.notes }
+        requestUpdate(from: current, to: merged)
     }
 
     /// Takes the edit explicitly: a dialog may clear `pendingEdit` before its button runs.
@@ -186,8 +214,10 @@ public final class CalendarStore {
     public func cancelPendingDelete() { pendingDelete = nil }
 
     func update(from original: EventItem, to updated: EventItem, span: EditSpan) {
+        let target = resolve(updated)
         do {
-            let saved = try source.save(updated, span: span)
+            let saved = try source.save(target, span: span)
+            noteReplacement(of: target.eventIdentifier, by: saved.eventIdentifier)
             undoManager.registerUndo(withTarget: self) { store in
                 MainActor.assumeIsolated {
                     store.update(from: saved, to: saved.withContent(of: original), span: span)
@@ -200,13 +230,14 @@ public final class CalendarStore {
         }
     }
 
-    /// Deleting a recurring event is not undoable: EventKit cannot recreate the series.
+    /// Only single events without attendees are undoable (see `EventItem.canUndoDelete`).
     func delete(_ item: EventItem, span: EditSpan) {
+        let target = resolve(item)
         do {
-            try source.remove(item, span: span)
-            if !item.isRecurring {
+            try source.remove(target, span: span)
+            if target.canUndoDelete {
                 undoManager.registerUndo(withTarget: self) { store in
-                    MainActor.assumeIsolated { _ = store.create(item) }
+                    MainActor.assumeIsolated { _ = store.insert(target) }
                 }
                 undoManager.setActionName("Delete Event")
             }
@@ -214,6 +245,21 @@ public final class CalendarStore {
         } catch {
             fail(error)
         }
+    }
+
+    private func noteReplacement(of old: String, by new: String) {
+        if !old.isEmpty && old != new { replacedIdentifiers[old] = new }
+    }
+
+    /// `item` with its identifier brought up to date through any replacements.
+    private func resolve(_ item: EventItem) -> EventItem {
+        var resolved = item
+        var hops = 0
+        while let next = replacedIdentifiers[resolved.eventIdentifier], hops < 100 {
+            resolved.eventIdentifier = next
+            hops += 1
+        }
+        return resolved
     }
 
     private func fail(_ error: Error) {

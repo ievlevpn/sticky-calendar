@@ -48,6 +48,11 @@ final class FakeSource: EventSource {
             guard let i = stored.firstIndex(where: { $0.id == item.id }) else {
                 throw EventSourceError.notFound
             }
+            // Like EventKit: moving an event to another calendar changes its identifier.
+            if stored[i].calendarID != item.calendarID {
+                saved.eventIdentifier = "e\(nextID)"
+                nextID += 1
+            }
             stored[i] = saved
         }
         return saved

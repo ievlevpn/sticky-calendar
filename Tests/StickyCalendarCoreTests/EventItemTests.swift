@@ -19,3 +19,12 @@ struct EventItemTests {
         #expect(e.id == before)
     }
 }
+
+struct EventItemValidityTests {
+    @Test func normalizedLeavesShortValidEventsAlone() {
+        let zero = event("z", at(10), at(10))
+        #expect(zero.normalized().end == at(10))
+        let five = event("f", at(10), at(10, 5))
+        #expect(five.normalized().end == at(10, 5))
+    }
+}

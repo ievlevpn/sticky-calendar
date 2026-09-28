@@ -39,7 +39,7 @@ struct StickyContentView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { item in
-            if item.isRecurring { Text("Deleting a repeating event can't be undone.") }
+            if !item.canUndoDelete { Text("This can't be undone.") }
         }
         .confirmationDialog(
             "This is a repeating event.",

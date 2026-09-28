@@ -1,15 +1,19 @@
+import AppKit
 import StickyCalendarCore
 import SwiftUI
 
 /// Quick editor for one event. Commits on close; Esc cancels.
 struct EventEditPopover: View {
     let calendars: [CalendarInfo]
-    /// Called exactly once when the popover goes away: the edited item, or nil if cancelled.
-    let onFinish: (EventItem?) -> Void
+    /// Called exactly once when the popover goes away with the item as it was when the
+    /// editor opened, and the edited item (nil if cancelled).
+    let onFinish: (_ snapshot: EventItem, _ result: EventItem?) -> Void
     let onDelete: (() -> Void)?
     let onOpenInCalendar: (() -> Void)?
 
     @State private var item: EventItem
+    /// Frozen at open; the view is rebuilt when the store reloads, but @State is not reset.
+    @State private var snapshot: EventItem
     @State private var cancelled = false
     @FocusState private var titleFocused: Bool
     @Environment(\.dismiss) private var dismiss
@@ -17,11 +21,12 @@ struct EventEditPopover: View {
     init(
         item: EventItem,
         calendars: [CalendarInfo],
-        onFinish: @escaping (EventItem?) -> Void,
+        onFinish: @escaping (_ snapshot: EventItem, _ result: EventItem?) -> Void,
         onDelete: (() -> Void)? = nil,
         onOpenInCalendar: (() -> Void)? = nil
     ) {
         _item = State(initialValue: item)
+        _snapshot = State(initialValue: item)
         self.calendars = calendars
         self.onFinish = onFinish
         self.onDelete = onDelete
@@ -74,12 +79,17 @@ struct EventEditPopover: View {
         }
         .padding(14)
         .frame(width: 270)
-        .onAppear { titleFocused = item.isNew }
+        .onAppear {
+            // The sticky never activates the app; typing in the popover needs it active,
+            // or keystrokes go to the app in front.
+            NSApp.activate()
+            titleFocused = item.isNew
+        }
         .onExitCommand {
             cancelled = true
             dismiss()
         }
-        .onDisappear { onFinish(cancelled ? nil : item) }
+        .onDisappear { onFinish(snapshot, cancelled ? nil : item) }
     }
 
     private func optionalText(_ binding: Binding<String?>) -> Binding<String> {

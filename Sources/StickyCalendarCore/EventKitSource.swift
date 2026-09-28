@@ -54,6 +54,11 @@ public final class EventKitSource: EventSource {
         event.endDate = item.end
         event.location = item.location
         event.notes = item.notes
+        if item.isNew {
+            // Only reached for new events: carries alarms and URL when undo restores a delete.
+            event.alarms = item.alarmOffsets.map { EKAlarm(relativeOffset: $0) }
+            event.url = item.url
+        }
         if let calendar = ek.calendar(withIdentifier: item.calendarID) {
             event.calendar = calendar
         } else if event.calendar == nil {
@@ -132,7 +137,12 @@ public final class EventKitSource: EventSource {
             location: event.location,
             notes: event.notes,
             isRecurring: event.hasRecurrenceRules || event.isDetached,
+            // Meetings organized by someone else are the organizer's to change, as in Calendar.app.
             isReadOnly: !(event.calendar?.allowsContentModifications ?? false)
+                || (event.hasAttendees && event.organizer?.isCurrentUser != true),
+            alarmOffsets: event.alarms?.compactMap { $0.absoluteDate == nil ? $0.relativeOffset : nil } ?? [],
+            url: event.url,
+            hasAttendees: event.hasAttendees
         )
     }
 }

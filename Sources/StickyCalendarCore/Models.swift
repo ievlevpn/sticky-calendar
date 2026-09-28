@@ -51,6 +51,11 @@ public struct EventItem: Identifiable, Equatable, Sendable {
     public var notes: String?
     public var isRecurring: Bool
     public var isReadOnly: Bool
+    /// Relative alarm offsets in seconds (negative = before start). Carried so an undone
+    /// delete can restore them.
+    public var alarmOffsets: [TimeInterval]
+    public var url: URL?
+    public var hasAttendees: Bool
 
     public init(
         eventIdentifier: String = "",
@@ -64,7 +69,10 @@ public struct EventItem: Identifiable, Equatable, Sendable {
         location: String? = nil,
         notes: String? = nil,
         isRecurring: Bool = false,
-        isReadOnly: Bool = false
+        isReadOnly: Bool = false,
+        alarmOffsets: [TimeInterval] = [],
+        url: URL? = nil,
+        hasAttendees: Bool = false
     ) {
         self.eventIdentifier = eventIdentifier
         self.externalIdentifier = externalIdentifier
@@ -78,6 +86,9 @@ public struct EventItem: Identifiable, Equatable, Sendable {
         self.notes = notes
         self.isRecurring = isRecurring
         self.isReadOnly = isReadOnly
+        self.alarmOffsets = alarmOffsets
+        self.url = url
+        self.hasAttendees = hasAttendees
     }
 
     /// Stable across moves: a non-recurring event keeps its identifier, and a recurring
@@ -87,6 +98,9 @@ public struct EventItem: Identifiable, Equatable, Sendable {
     }
 
     public var isNew: Bool { eventIdentifier.isEmpty }
+    /// A deleted event can be recreated faithfully only if it is a single event we own:
+    /// EventKit cannot recreate a series, and a recreated meeting would lose its attendees.
+    public var canUndoDelete: Bool { !isRecurring && !hasAttendees }
     public var duration: TimeInterval { end.timeIntervalSince(start) }
 
     /// This item's identity with `other`'s user-editable fields.
@@ -101,11 +115,12 @@ public struct EventItem: Identifiable, Equatable, Sendable {
         return copy
     }
 
-    /// Trims the title and guarantees `end` is at least `minimumDuration` after `start`.
+    /// Trims the title and repairs an end before the start (as a date picker can produce).
+    /// Short or zero-length events are valid and left alone.
     public func normalized(minimumDuration: TimeInterval = minimumEventDuration) -> EventItem {
         var copy = self
         copy.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if copy.end < copy.start.addingTimeInterval(minimumDuration), !isAllDay {
+        if copy.end < copy.start, !isAllDay {
             copy.end = copy.start.addingTimeInterval(minimumDuration)
         }
         return copy
