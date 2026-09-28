@@ -30,5 +30,9 @@ struct HeaderView: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 32)
+        // SwiftUI extends the timeline's scroll view up under the header (it insets the
+        // content by the header height), so the header needs its own bar material.
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }

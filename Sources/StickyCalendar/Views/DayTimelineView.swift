@@ -19,7 +19,6 @@ struct DayTimelineView: View {
     @State private var viewportHeight: CGFloat = 0
 
     private static let space = "timeline"
-    private static let scrollSpace = "timelineScroll"
     private static let nowAnchor = "now"
     private let gutter: CGFloat = 44
     private let trailingInset: CGFloat = 8
@@ -37,26 +36,13 @@ struct DayTimelineView: View {
                             .onChange(of: context.date) { _, now in reportNowVisibility(geo, now: now) }
                     }
                     .padding(.vertical, verticalInset)
-                    .background(GeometryReader { content in
-                        Color.clear.preference(
-                            key: ScrollOffsetKey.self,
-                            value: -content.frame(in: .named(Self.scrollSpace)).minY
-                        )
+                    .background(ScrollObserver { offset, height in
+                        scrollOffset = offset
+                        viewportHeight = height
+                        reportNowVisibility(geo, now: Date())
                     })
                 }
-                .coordinateSpace(name: Self.scrollSpace)
-                .onPreferenceChange(ScrollOffsetKey.self) { offset in
-                    scrollOffset = offset
-                    reportNowVisibility(geo, now: Date())
-                }
-                .onAppear {
-                    viewportHeight = viewport.size.height
-                    scroll(reader, to: store.scrollRequest.target)
-                }
-                .onChange(of: viewport.size.height) { _, height in
-                    viewportHeight = height
-                    reportNowVisibility(geo, now: Date())
-                }
+                .onAppear { scroll(reader, to: store.scrollRequest.target) }
                 .onChange(of: store.scrollRequest) { _, request in scroll(reader, to: request.target) }
             }
         }
@@ -357,9 +343,4 @@ struct EventBlockView: View {
         .overlay(shape.strokeBorder(color, lineWidth: isSelected ? 1.5 : 0))
         .opacity(isPast ? 0.5 : 1)
     }
-}
-
-private struct ScrollOffsetKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
