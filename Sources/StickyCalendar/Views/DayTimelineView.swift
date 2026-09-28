@@ -181,7 +181,11 @@ struct DayTimelineView: View {
         .overlay(alignment: .bottom) { resizeHandle(item, .resizeEnd, geo: geo) }
         .gesture(dragGesture(item, .move, geo: geo))
         .onTapGesture(count: 2) { editingID = item.id }
-        .onTapGesture { store.selectedID = item.id }
+        // Simultaneous, so selection is immediate: a plain single-tap below a double-tap
+        // waits out the double-click interval (~0.4 s) before firing.
+        .simultaneousGesture(TapGesture().onEnded { store.selectedID = item.id })
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(store.selectedID == item.id ? .isSelected : [])
         .popover(
             isPresented: Binding(get: { editingID == item.id }, set: { if !$0 { editingID = nil } }),
             arrowEdge: .leading
