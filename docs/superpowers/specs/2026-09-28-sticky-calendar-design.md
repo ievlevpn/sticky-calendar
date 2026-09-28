@@ -159,3 +159,14 @@ Status item with an SF Symbol calendar icon. Menu: Show/Hide Sticky, Settings…
   `~/Applications`.
 - Known caveat: TCC ties Calendar permission to the code signature; ad-hoc re-signing
   may re-prompt after rebuilds. A stable self-signed certificate can be added later.
+
+## Amendments (2026-09-29, during planning)
+
+- Window is a titled `NSPanel` with a transparent, button-less title bar rather than a
+  literally borderless one — native edge-resize, rounded corners and shadow; looks borderless.
+- "Open in Calendar" fallback just opens Calendar.app (jumping to a date needs AppleScript
+  + Automation permission).
+- Deleting a recurring event is not undoable (EventKit cannot recreate a series); the
+  confirmation dialog says so.
+- No custom `.icns`; the menu-bar icon is the SF Symbol `calendar.day.timeline.left`.
+- Tests use Swift Testing via `scripts/test.sh` (Command Line Tools lack XCTest).
