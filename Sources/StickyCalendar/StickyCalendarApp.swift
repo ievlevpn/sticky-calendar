@@ -1,0 +1,1 @@
+print("StickyCalendar stub")
