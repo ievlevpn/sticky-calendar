@@ -39,6 +39,10 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
             onTogglePin: { [weak self] in self?.togglePinned() }
         ))
         hosting.sizingOptions = [] // let the user resize freely
+        // Our header replaces the (transparent) title bar. Without this, SwiftUI treats the
+        // title-bar strip as a safe area and extends the timeline's scroll view up under the
+        // header, where it draws over the header and swallows clicks on its buttons.
+        hosting.safeAreaRegions = []
         contentView = hosting
         delegate = self
 

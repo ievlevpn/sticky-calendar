@@ -25,7 +25,6 @@ struct StickyContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VisualEffectBackground().opacity(settings.opacity))
         .overlay(alignment: .bottom) { ErrorBanner(store: store) }
-        .ignoresSafeArea()
         .confirmationDialog(
             deleteTitle,
             isPresented: Binding(get: { store.pendingDelete != nil }, set: { if !$0 { store.cancelPendingDelete() } }),
