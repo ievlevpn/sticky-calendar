@@ -12,6 +12,7 @@ struct SettingsView: View {
     let remindersHotKey: GlobalHotKey
     let onReminderPlacement: (ReminderPlacement) -> Void
     let onChangeReminderSource: () -> Void
+    let onNotePlacement: (NotePlacement) -> Void
     let updateChecker: UpdateChecker
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -62,6 +63,10 @@ struct SettingsView: View {
             }
 
             Section("Note") {
+                Picker("Show the note", selection: Binding(get: { notepad.placement }, set: onNotePlacement)) {
+                    Text("Under the timeline").tag(NotePlacement.pane)
+                    Text("In its own sticky").tag(NotePlacement.window)
+                }
                 Toggle("A separate note for each day", isOn: Binding(get: { notepad.isPerDay }, set: notepad.setPerDay))
                 Text(notepad.isPerDay
                      ? "The note follows the day you're viewing, like a journal."

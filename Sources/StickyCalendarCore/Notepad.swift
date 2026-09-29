@@ -13,6 +13,8 @@ public final class Notepad {
         static let height = "noteHeight"
         static let isPerDay = "isNotePerDay"
         static let dayNotes = "dayNotes"
+        static let placement = "notePlacement"
+        static let isWindowPinned = "noteWindowPinned"
     }
 
     public static let minHeight: Double = 60
@@ -31,6 +33,10 @@ public final class Notepad {
     public private(set) var isPerDay: Bool
     /// The day being viewed, as the note sees it.
     public private(set) var day: Date
+    /// Under the timeline (default) or in its own sticky. `isVisible` is for either.
+    public private(set) var placement: NotePlacement
+    /// The note's own sticky floats on top.
+    public private(set) var isWindowPinned: Bool
     /// Hidden until the user opens it from the header.
     public private(set) var isVisible: Bool
     /// Preferred height; the view may show less when the window is short.
@@ -58,6 +64,8 @@ public final class Notepad {
         self.day = calendar.startOfDay(for: day)
         text = perDay ? notes[key] ?? "" : single
         isVisible = defaults.object(forKey: Key.isVisible) as? Bool ?? false
+        placement = defaults.string(forKey: Key.placement).flatMap(NotePlacement.init(rawValue:)) ?? .pane
+        isWindowPinned = defaults.object(forKey: Key.isWindowPinned) as? Bool ?? true
         height = max(defaults.object(forKey: Key.height) as? Double ?? Self.defaultHeight, Self.minHeight)
     }
 
@@ -96,6 +104,16 @@ public final class Notepad {
         return String(format: "%04d-%02d-%02d", parts.year!, parts.month!, parts.day!)
     }
 
+    public func setPlacement(_ value: NotePlacement) {
+        placement = value
+        defaults.set(value.rawValue, forKey: Key.placement)
+    }
+
+    public func setWindowPinned(_ pinned: Bool) {
+        isWindowPinned = pinned
+        defaults.set(pinned, forKey: Key.isWindowPinned)
+    }
+
     public func setVisible(_ visible: Bool) {
         isVisible = visible
         defaults.set(visible, forKey: Key.isVisible)
@@ -105,4 +123,12 @@ public final class Notepad {
         height = max(value, Self.minHeight)
         defaults.set(height, forKey: Key.height)
     }
+}
+
+/// Where the note appears.
+public enum NotePlacement: String, Sendable, CaseIterable {
+    /// Under the timeline, in the calendar sticky.
+    case pane
+    /// In its own sticky.
+    case window
 }

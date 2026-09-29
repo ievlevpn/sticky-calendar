@@ -23,12 +23,7 @@ struct NotePane: View {
 
     private func bar(height: CGFloat) -> some View {
         HStack(spacing: 8) {
-            // Shortens, rather than running into the grip, in a narrow window.
-            ViewThatFits(in: .horizontal) {
-                barTitle(.dateTime.weekday(.abbreviated).day().month(.abbreviated), prefix: true)
-                barTitle(.dateTime.day().month(.abbreviated), prefix: true)
-                barTitle(.dateTime.day().month(.abbreviated), prefix: false)
-            }
+            NoteTitle(notepad: notepad, size: 10)
             Spacer(minLength: 8)
             Capsule().fill(.tertiary).frame(width: 28, height: 3)
             Spacer(minLength: 8)
@@ -55,13 +50,27 @@ struct NotePane: View {
             }
             .onEnded { _ in dragStartHeight = nil })
     }
+}
 
-    /// "Note · Tue, 29 Sep" for per-day notes (without "Note ·" when short of room), else "Note".
-    private func barTitle(_ format: Date.FormatStyle, prefix: Bool) -> some View {
+/// "Note · Tue, 29 Sep" for per-day notes, else "Note"; shortens rather than crowding
+/// what's next to it in a narrow window.
+struct NoteTitle: View {
+    let notepad: Notepad
+    let size: CGFloat
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            title(.dateTime.weekday(.abbreviated).day().month(.abbreviated), prefix: true)
+            title(.dateTime.day().month(.abbreviated), prefix: true)
+            title(.dateTime.day().month(.abbreviated), prefix: false)
+        }
+    }
+
+    private func title(_ format: Date.FormatStyle, prefix: Bool) -> some View {
         let day = notepad.day.formatted(format)
         return Text(!notepad.isPerDay ? "Note" : prefix ? "Note · \(day)" : day)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.secondary)
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(size < 12 ? .secondary : .primary)
             .lineLimit(1)
             .fixedSize()
     }

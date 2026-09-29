@@ -11,6 +11,8 @@ struct StickyContentView: View {
     let reminderStore: ReminderStore
     let reminderSettings: ReminderSettings
     let onToggleReminders: () -> Void
+    /// Opens or closes the note's own sticky (when the note has one).
+    let onToggleNoteWindow: () -> Void
     let onChooseReminderPlacement: (ReminderPlacement) -> Void
     let onTogglePin: () -> Void
     let onToggleCompact: () -> Void
@@ -86,7 +88,7 @@ struct StickyContentView: View {
         case .denied:
             AccessDeniedView()
         }
-        if notepad.isVisible {
+        if notepad.placement == .pane, notepad.isVisible {
             NotePane(notepad: notepad, editor: noteEditor, zoom: settings.zoom, maxHeight: contentHeight - reservedHeight)
         }
     }
@@ -100,6 +102,7 @@ struct StickyContentView: View {
     }
 
     private func toggleNote() {
+        guard notepad.placement == .pane else { return onToggleNoteWindow() }
         if notepad.isVisible { noteEditor.resignFocus() } else { noteEditor.requestFocus() }
         notepad.setVisible(!notepad.isVisible)
     }

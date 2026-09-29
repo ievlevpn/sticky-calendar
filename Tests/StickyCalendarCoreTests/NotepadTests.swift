@@ -80,4 +80,13 @@ struct NotepadTests {
         n.setPerDay(false)
         #expect(n.text == "from before")
     }
+
+    @Test func placementAndItsPinPersist() {
+        let n = Notepad(defaults: defaults, calendar: utc, day: at(9))
+        #expect(n.placement == .pane && n.isWindowPinned)
+        n.setPlacement(.window)
+        n.setWindowPinned(false)
+        let r = Notepad(defaults: defaults, calendar: utc, day: at(9))
+        #expect(r.placement == .window && !r.isWindowPinned)
+    }
 }

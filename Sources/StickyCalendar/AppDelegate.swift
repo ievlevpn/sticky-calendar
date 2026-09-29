@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var reminderStore = ReminderStore(source: ReminderSources.make(reminderSettings), settings: reminderSettings)
     private var reminderRefresh: Timer?
     private var remindersPanel: RemindersPanel?
+    private var notesPanel: NotesPanel?
     private let updateChecker = UpdateChecker(currentVersion: AppVersion.short)
     private var updateTimer: Timer?
     private lazy var hotKey = GlobalHotKey { [weak self] in self?.toggleFromHotKey() }
@@ -28,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             store: store, settings: settings, notepad: notepad,
             reminderStore: reminderStore, reminderSettings: reminderSettings,
             onToggleReminders: { [weak self] in self?.toggleReminders() },
+            onToggleNoteWindow: { [weak self] in self?.toggleNoteWindow() },
             onChooseReminderPlacement: { [weak self] in self?.chooseReminderPlacement($0) },
             onSettings: { [weak self] in self?.showSettings() }
         )
@@ -44,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Not placed yet (e.g. opened as a window by 0.7): ask when they're next opened, not at launch.
         if !reminderSettings.isPlacementChosen { reminderSettings.setVisible(false) }
         if reminderSettings.placement == .window, reminderSettings.isVisible { showRemindersWindow() }
+        if notepad.placement == .window, notepad.isVisible { showNoteWindow(focus: false) }
         hotKey.apply(settings.globalHotKey.carbonKey)
         remindersHotKey.apply(reminderSettings.hotKey.carbonKey)
         scheduleReminderRefresh()
@@ -72,6 +75,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.orderFrontRegardless()
             panel.makeKey()
         }
+    }
+
+    // MARK: Note
+
+    private func toggleNoteWindow() {
+        if notepad.isVisible { hideNoteWindow() } else { showNoteWindow(focus: true) }
+    }
+
+    private func showNoteWindow(focus: Bool) {
+        if notesPanel == nil {
+            notesPanel = NotesPanel(
+                notepad: notepad, appSettings: settings, beside: panel,
+                onSettings: { [weak self] in self?.showSettings() },
+                onClose: { [weak self] in self?.hideNoteWindow() }
+            )
+        }
+        notepad.setVisible(true)
+        notesPanel?.orderFrontRegardless()
+        if focus {
+            notesPanel?.makeKey()
+            notesPanel?.editor.requestFocus()
+        }
+    }
+
+    private func hideNoteWindow() {
+        notepad.setVisible(false)
+        notesPanel?.orderOut(nil)
+    }
+
+    /// Settings → Note: moving the note closes it where it was.
+    private func setNotePlacement(_ placement: NotePlacement) {
+        guard placement != notepad.placement else { return }
+        hideNoteWindow()
+        notepad.setPlacement(placement)
     }
 
     // MARK: Reminders
@@ -171,25 +208,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
     }
 
+    /// Settings float like the stickies and join every Space, so they open over a full-screen
+    /// app instead of switching away from it.
     private func showSettings() {
         if settingsWindow == nil {
-            let window = NSWindow(contentViewController: NSHostingController(
+            let window = SettingsPanel(contentViewController: NSHostingController(
                 rootView: SettingsView(
                     store: store, settings: settings, notepad: notepad, hotKey: hotKey,
                     reminderStore: reminderStore, reminderSettings: reminderSettings, remindersHotKey: remindersHotKey,
                     onReminderPlacement: { [weak self] in self?.setReminderPlacement($0) },
                     onChangeReminderSource: { [weak self] in self?.changeReminderSource() },
+                    onNotePlacement: { [weak self] in self?.setNotePlacement($0) },
                     updateChecker: updateChecker
                 )
             ))
             window.title = "Sticky Calendar Settings"
-            window.styleMask = [.titled, .closable]
-            window.isReleasedWhenClosed = false
             window.center()
             settingsWindow = window
         }
-        NSApp.activate()
-        settingsWindow?.makeKeyAndOrderFront(nil)
+        settingsWindow?.orderFrontRegardless()
+        settingsWindow?.makeKey()
     }
 
     private func observeClock() {
@@ -237,4 +275,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 enum AppVersion {
     static let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0-dev"
     static let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+}
+
+/// The Settings window: a floating, non-activating panel on every Space, including over
+/// full-screen apps (an ordinary window would open on the desktop and switch away).
+@MainActor
+final class SettingsPanel: NSPanel {
+    convenience init(contentViewController: NSViewController) {
+        self.init(contentRect: .zero, styleMask: [.titled, .closable, .nonactivatingPanel], backing: .buffered, defer: false)
+        self.contentViewController = contentViewController
+        isReleasedWhenClosed = false
+        hidesOnDeactivate = false
+        isFloatingPanel = true
+        level = .floating
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+    }
+
+    override var canBecomeKey: Bool { true }
+
+    /// ⌘W closes it (there's no File menu to do it).
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags == [.command], event.charactersIgnoringModifiers?.lowercased() == "w" {
+            close()
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 }
