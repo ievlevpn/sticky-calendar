@@ -23,11 +23,15 @@ struct NotePane: View {
 
     private func bar(height: CGFloat) -> some View {
         HStack(spacing: 8) {
-            Text(notepad.isPerDay ? "Note · \(notepad.day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))" : "Note")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Spacer()
+            // Shortens, rather than running into the grip, in a narrow window.
+            ViewThatFits(in: .horizontal) {
+                barTitle(.dateTime.weekday(.abbreviated).day().month(.abbreviated), prefix: true)
+                barTitle(.dateTime.day().month(.abbreviated), prefix: true)
+                barTitle(.dateTime.day().month(.abbreviated), prefix: false)
+            }
+            Spacer(minLength: 8)
+            Capsule().fill(.tertiary).frame(width: 28, height: 3)
+            Spacer(minLength: 8)
             Button("Clear") { editor.clear() }
                 .buttonStyle(.borderless)
                 .font(.system(size: 10))
@@ -36,7 +40,6 @@ struct NotePane: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 22)
-        .overlay { Capsule().fill(.tertiary).frame(width: 28, height: 3) }
         .contentShape(Rectangle())
         .background(.bar)
         .overlay(alignment: .top) { Divider() }
@@ -51,6 +54,16 @@ struct NotePane: View {
                 notepad.setHeight(Double(min(start - value.translation.height, maxHeight)))
             }
             .onEnded { _ in dragStartHeight = nil })
+    }
+
+    /// "Note · Tue, 29 Sep" for per-day notes (without "Note ·" when short of room), else "Note".
+    private func barTitle(_ format: Date.FormatStyle, prefix: Bool) -> some View {
+        let day = notepad.day.formatted(format)
+        return Text(!notepad.isPerDay ? "Note" : prefix ? "Note · \(day)" : day)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize()
     }
 }
 
