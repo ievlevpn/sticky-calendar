@@ -65,8 +65,8 @@ struct ReminderEditor: View {
                 Toggle("Time", isOn: $hasTime.animation())
             }
             HStack {
-                Text("Importance")
-                Spacer()
+                Text("Importance").lineLimit(1).fixedSize()
+                Spacer(minLength: 8)
                 Picker("", selection: $priority) {
                     Text("None").tag(ReminderPriority.none)
                     Text("!").tag(ReminderPriority.low)
@@ -75,6 +75,7 @@ struct ReminderEditor: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                .controlSize(.small)
                 .fixedSize()
             }
             Text("Notes").font(.caption).foregroundStyle(.secondary)
