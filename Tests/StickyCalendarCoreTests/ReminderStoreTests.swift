@@ -142,11 +142,11 @@ struct ReminderStoreTests {
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         let s = ReminderSettings(defaults: defaults)
-        #expect(s.placement == .window && s.mode == .today && s.hotKey == .controlOptionR && s.isPinned && !s.isVisible)
+        #expect(s.placement == .tab && !s.isPlacementChosen && s.mode == .today && s.hotKey == .controlOptionR && s.isPinned && !s.isVisible)
         s.setPlacement(.tab); s.setMode(.lists); s.setShowsCompleted(true); s.setList("x", visible: false)
         s.setPinned(false); s.setVisible(true); s.setHotKey(.off)
         let r = ReminderSettings(defaults: defaults)
-        #expect(r.placement == .tab && r.mode == .lists && r.showsCompleted && r.hiddenListIDs == ["x"])
+        #expect(r.placement == .tab && r.isPlacementChosen && r.mode == .lists && r.showsCompleted && r.hiddenListIDs == ["x"])
         #expect(!r.isPinned && r.isVisible && r.hotKey == .off)
         #expect(r.provider == nil && r.obsidianInboxPath == "Inbox.md")
         r.setProvider(.obsidian)
@@ -155,6 +155,20 @@ struct ReminderStoreTests {
         #expect(o.provider == .obsidian && o.obsidianVaultPath == "/v" && o.obsidianInboxPath == "Tasks/Inbox.md")
         o.setProvider(nil)
         #expect(ReminderSettings(defaults: defaults).provider == nil)
+    }
+}
+
+@MainActor
+struct RefreshTests {
+    @Test func calendarRefreshAsksTheSourceToSyncAndReloads() {
+        let defaults = UserDefaults(suiteName: "RefreshTests-\(UUID().uuidString)")!
+        let source = FakeSource()
+        let store = CalendarStore(source: source, settings: AppSettings(defaults: defaults), calendar: utc, now: { at(12) })
+        source.stored = [event("a", at(9), at(10))]
+        #expect(store.timedEvents.isEmpty)
+        store.refresh()
+        #expect(source.refreshCount == 1)
+        #expect(store.timedEvents.map(\.eventIdentifier) == ["a"])
     }
 }
 

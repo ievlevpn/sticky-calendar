@@ -25,6 +25,7 @@ final class RemindersPanel: FloatingPanel {
         setContent(RemindersWindowContent(
             store: store, settings: settings, appSettings: appSettings,
             onTogglePin: { [weak self] in self?.togglePinned() },
+            onRefresh: { Task { await store.refresh() } },
             onSettings: onSettings
         ), defaultPlacement: { panel in
             guard let neighbour else { return panel.placeTopRight() }
@@ -47,7 +48,7 @@ final class RemindersPanel: FloatingPanel {
         applyPinned()
     }
 
-    /// ⌘Z / ⇧⌘Z undo and redo (unless a text field is editing), ⌃S pins, ⌘W hides,
+    /// ⌘Z / ⇧⌘Z undo and redo (unless a text field is editing), ⌃S pins, ⌘W hides, ⌘R refreshes,
     /// ⌘, opens Settings, ⌘= / ⌘- / ⌘0 zoom.
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -66,6 +67,7 @@ final class RemindersPanel: FloatingPanel {
         switch (flags, key) {
         case ([.command], ","): onSettings()
         case ([.command], "w"): onClose()
+        case ([.command], "r"): Task { await store.refresh() }
         case ([.command], "="), ([.command], "+"), ([.command, .shift], "+"), ([.command, .shift], "="): appSettings.zoomIn()
         case ([.command], "-"): appSettings.zoomOut()
         case ([.command], "0"): appSettings.resetZoom()
@@ -83,12 +85,15 @@ struct RemindersWindowContent: View {
     let settings: ReminderSettings
     let appSettings: AppSettings
     let onTogglePin: () -> Void
+    let onRefresh: () -> Void
     let onSettings: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            RemindersHeader(settings: settings, onTogglePin: onTogglePin, onSettings: onSettings)
-            RemindersView(store: store, settings: settings, zoom: appSettings.zoom)
+            RemindersHeader(settings: settings, isRefreshing: store.isLoading,
+                            onTogglePin: onTogglePin, onRefresh: onRefresh, onSettings: onSettings)
+            // Already placed in a window, so the placement question never shows here.
+            RemindersView(store: store, settings: settings, zoom: appSettings.zoom, onChoosePlacement: { _ in })
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(VisualEffectBackground().opacity(appSettings.opacity))

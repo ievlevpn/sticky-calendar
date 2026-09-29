@@ -8,6 +8,9 @@ struct HeaderView: View {
     let isNoteVisible: Bool
     let onToggleNote: () -> Void
     let onToggleReminders: () -> Void
+    /// Refreshes what's showing: the calendar, or the Reminders tab.
+    let onRefresh: () -> Void
+    let isRefreshing: Bool
     let onTogglePin: () -> Void
     let onToggleCompact: () -> Void
     let onSettings: () -> Void
@@ -21,9 +24,10 @@ struct HeaderView: View {
             if showsRemindersTab {
                 Text("Reminders").font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 Spacer()
-                remindersButton
+                refreshButton
                 pinButton
                 settingsButton
+                remindersButton // last in both modes, so it stays put when switching
             } else {
                 // Drops the weekday, then the month, when a narrow window can't fit them.
                 ViewThatFits(in: .horizontal) {
@@ -43,18 +47,19 @@ struct HeaderView: View {
                     HStack(spacing: 8) {
                         jumpToNowButton
                         if !settings.isCompact { noteButton }
-                        remindersButton
+                        refreshButton
                         calendarButton
                         pinButton
                         compactButton
                         settingsButton
+                        remindersButton // last in both modes, so it stays put when switching
                     }
                     HStack(spacing: 8) {
                         jumpToNowButton
                         if !settings.isCompact { noteButton }
-                        remindersButton
                         pinButton
                         moreMenu
+                        remindersButton
                     }
                 }
                 .layoutPriority(1)
@@ -97,6 +102,17 @@ struct HeaderView: View {
                   : (isRemindersOpen ? "Hide reminders" : "Show reminders"))
     }
 
+    @ViewBuilder
+    private var refreshButton: some View {
+        if isRefreshing {
+            ProgressView().controlSize(.small).frame(width: 16, height: 16)
+        } else {
+            Button(action: onRefresh) { Image(systemName: "arrow.clockwise") }
+                .buttonStyle(.borderless)
+                .help("Refresh (⌘R)")
+        }
+    }
+
     private var calendarButton: some View {
         Button { openInCalendar() } label: { Image(systemName: "calendar") }
             .buttonStyle(.borderless)
@@ -123,9 +139,10 @@ struct HeaderView: View {
             .help("Settings (⌘,)")
     }
 
-    /// Open in Calendar, compact and settings, when the header is too narrow for them.
+    /// Refresh, Open in Calendar, compact and settings, when the header is too narrow for them.
     private var moreMenu: some View {
         Menu {
+            Button("Refresh", action: onRefresh)
             Button("Open in Calendar", action: openInCalendar)
             Button(settings.isCompact ? "Expand" : "Compact", action: onToggleCompact)
             Divider()

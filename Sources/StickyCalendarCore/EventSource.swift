@@ -34,4 +34,10 @@ public protocol EventSource: AnyObject {
     /// Creates the event if `item.isNew`, otherwise updates it. Returns the saved state.
     func save(_ item: EventItem, span: EditSpan) throws -> EventItem
     func remove(_ item: EventItem, span: EditSpan) throws
+    /// Asks the calendar database to sync with its servers; changes arrive through `onChange`.
+    func refreshIfNeeded()
+}
+
+public extension EventSource {
+    func refreshIfNeeded() {}
 }

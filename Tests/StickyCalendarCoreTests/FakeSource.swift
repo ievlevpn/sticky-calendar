@@ -18,6 +18,9 @@ final class FakeSource: EventSource {
     var stored: [EventItem] = []
     var failNextWrite = false
     private(set) var spans: [EditSpan] = []
+    private(set) var refreshCount = 0
+
+    func refreshIfNeeded() { refreshCount += 1 }
     private var nextID = 1
 
     func currentAccess() -> CalendarAccess { access }

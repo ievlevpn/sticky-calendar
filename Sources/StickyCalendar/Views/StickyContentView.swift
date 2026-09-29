@@ -11,6 +11,7 @@ struct StickyContentView: View {
     let reminderStore: ReminderStore
     let reminderSettings: ReminderSettings
     let onToggleReminders: () -> Void
+    let onChooseReminderPlacement: (ReminderPlacement) -> Void
     let onTogglePin: () -> Void
     let onToggleCompact: () -> Void
     let onSettings: () -> Void
@@ -24,10 +25,12 @@ struct StickyContentView: View {
             HeaderView(
                 store: store, settings: settings, reminderSettings: reminderSettings,
                 isNoteVisible: notepad.isVisible, onToggleNote: toggleNote, onToggleReminders: onToggleReminders,
+                onRefresh: refresh, isRefreshing: showsRemindersTab && reminderStore.isLoading,
                 onTogglePin: onTogglePin, onToggleCompact: onToggleCompact, onSettings: onSettings
             )
-            if reminderSettings.placement == .tab, reminderSettings.isVisible, !settings.isCompact {
-                RemindersView(store: reminderStore, settings: reminderSettings, zoom: settings.zoom)
+            if showsRemindersTab {
+                RemindersView(store: reminderStore, settings: reminderSettings, zoom: settings.zoom,
+                              onChoosePlacement: onChooseReminderPlacement)
             } else if settings.isCompact, store.access == .granted {
                 UpNextRow(store: store, onExpand: onToggleCompact)
             } else {
@@ -86,6 +89,14 @@ struct StickyContentView: View {
         if notepad.isVisible {
             NotePane(notepad: notepad, editor: noteEditor, zoom: settings.zoom, maxHeight: contentHeight - reservedHeight)
         }
+    }
+
+    private var showsRemindersTab: Bool {
+        reminderSettings.placement == .tab && reminderSettings.isVisible && !settings.isCompact
+    }
+
+    private func refresh() {
+        if showsRemindersTab { Task { await reminderStore.refresh() } } else { store.refresh() }
     }
 
     private func toggleNote() {

@@ -10,6 +10,8 @@ public final class ReminderStore {
     public private(set) var lists: [ReminderListInfo] = []
     public private(set) var items: [ReminderItem] = []
     public var lastError: String?
+    /// A fetch is under way (for the refresh button's spinner).
+    public private(set) var isLoading = false
     /// Whether a source is chosen; without one, the view asks where reminders come from.
     public private(set) var hasSource = false
 
@@ -68,6 +70,8 @@ public final class ReminderStore {
         }
         generation += 1
         let mine = generation
+        isLoading = true
+        defer { if mine == generation { isLoading = false } }
         do {
             let fetched = try await source.reminders(completedSince: calendar.startOfDay(for: now()))
             guard mine == generation else { return }
@@ -79,6 +83,12 @@ public final class ReminderStore {
             access = source.currentAccess()
             lastError = error.localizedDescription
         }
+    }
+
+    /// The refresh button and ⌘R: syncs the source with its server if it can, then reloads.
+    public func refresh() async {
+        source?.refreshIfNeeded()
+        await reload()
     }
 
     private func reloadSoon() {

@@ -8,6 +8,8 @@ struct RemindersView: View {
     let store: ReminderStore
     let settings: ReminderSettings
     let zoom: CGFloat
+    /// The first-open question: stay a tab, or get their own window.
+    let onChoosePlacement: (ReminderPlacement) -> Void
 
     @State private var newText = ""
     @State private var addListID: String?
@@ -19,7 +21,9 @@ struct RemindersView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !store.hasSource || settings.provider == nil {
+            if !settings.isPlacementChosen {
+                placementQuestion
+            } else if !store.hasSource || settings.provider == nil {
                 ReminderSourceChooser(store: store, settings: settings)
             } else {
                 switch (store.access, settings.provider) {
@@ -40,7 +44,9 @@ struct RemindersView: View {
                 }
             }
         }
-        .task { await store.requestAccessIfNeeded() }
+        .task(id: settings.isPlacementChosen) {
+            if settings.isPlacementChosen { await store.requestAccessIfNeeded() }
+        }
         .overlay(alignment: .bottom) {
             if let error = store.lastError {
                 Text(error)
@@ -56,6 +62,51 @@ struct RemindersView: View {
     }
 
     // MARK: Parts
+
+    private var placementQuestion: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Where should reminders appear?").font(.headline)
+            placementOption(.tab, icon: "rectangle.on.rectangle", title: "In this sticky",
+                            detail: "The checklist button switches between your calendar and reminders.",
+                            recommended: true)
+            placementOption(.window, icon: "rectangle.split.2x1", title: "In their own sticky",
+                            detail: "A second floating window next to this one, so you see both at once.",
+                            recommended: false)
+            Text("You can change this later in Settings → Reminders.")
+                .font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func placementOption(_ placement: ReminderPlacement, icon: String, title: String,
+                                 detail: String, recommended: Bool) -> some View {
+        Button { onChoosePlacement(placement) } label: {
+            HStack(spacing: 10) {
+                Image(systemName: icon).font(.system(size: 16)).foregroundStyle(Color.accentColor).frame(width: 22)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 6) {
+                        Text(title).font(.system(size: 12.5, weight: .semibold))
+                        if recommended {
+                            Text("Default").font(.system(size: 9.5, weight: .semibold)).foregroundStyle(.secondary)
+                                .padding(.horizontal, 5).padding(.vertical, 1)
+                                .background(Capsule().fill(Color.primary.opacity(0.08)))
+                        }
+                    }
+                    Text(detail).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
 
     private var modeBar: some View {
         HStack(spacing: 8) {
@@ -259,16 +310,25 @@ struct RemindersView: View {
     }
 }
 
-/// The reminders window's header: its title, pin and settings.
+/// The reminders window's header: its title, refresh, pin and settings.
 struct RemindersHeader: View {
     let settings: ReminderSettings
+    let isRefreshing: Bool
     let onTogglePin: () -> Void
+    let onRefresh: () -> Void
     let onSettings: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
             Text("Reminders").font(.system(size: 13, weight: .semibold)).lineLimit(1)
             Spacer()
+            if isRefreshing {
+                ProgressView().controlSize(.small).frame(width: 16, height: 16)
+            } else {
+                Button(action: onRefresh) { Image(systemName: "arrow.clockwise") }
+                    .buttonStyle(.borderless)
+                    .help("Refresh (⌘R)")
+            }
             Button(action: onTogglePin) { Image(systemName: settings.isPinned ? "pin.fill" : "pin.slash") }
                 .buttonStyle(.borderless)
                 .help(settings.isPinned ? "Unpin: behave like a normal window (⌃S)" : "Pin: keep on top of other windows (⌃S)")

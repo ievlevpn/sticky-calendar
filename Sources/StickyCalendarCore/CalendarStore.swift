@@ -119,6 +119,12 @@ public final class CalendarStore {
         if let id = selectedID, !timedEvents.contains(where: { $0.id == id }) { selectedID = nil }
     }
 
+    /// The refresh button and ⌘R: asks the calendars to sync, and shows what's there now.
+    public func refresh() {
+        source.refreshIfNeeded()
+        reload()
+    }
+
     public func requestAccessIfNeeded() async {
         if source.currentAccess() == .notDetermined { _ = await source.requestAccess() }
         reload()

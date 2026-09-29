@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             store: store, settings: settings, notepad: notepad,
             reminderStore: reminderStore, reminderSettings: reminderSettings,
             onToggleReminders: { [weak self] in self?.toggleReminders() },
+            onChooseReminderPlacement: { [weak self] in self?.chooseReminderPlacement($0) },
             onSettings: { [weak self] in self?.showSettings() }
         )
         self.panel = panel
@@ -40,6 +41,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             updateChecker: updateChecker
         )
         panel.orderFrontRegardless()
+        // Not placed yet (e.g. opened as a window by 0.7): ask when they're next opened, not at launch.
+        if !reminderSettings.isPlacementChosen { reminderSettings.setVisible(false) }
         if reminderSettings.placement == .window, reminderSettings.isVisible { showRemindersWindow() }
         hotKey.apply(settings.globalHotKey.carbonKey)
         remindersHotKey.apply(reminderSettings.hotKey.carbonKey)
@@ -126,6 +129,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func hideRemindersWindow() {
         reminderSettings.setVisible(false)
         remindersPanel?.orderOut(nil)
+    }
+
+    /// The first-open question: stay a tab (as they opened), or move to their own window.
+    private func chooseReminderPlacement(_ placement: ReminderPlacement) {
+        if placement == .window {
+            reminderSettings.setVisible(false) // leave the tab
+            reminderSettings.setPlacement(.window)
+            showRemindersWindow()
+        } else {
+            reminderSettings.setPlacement(.tab)
+        }
     }
 
     /// Settings → Reminders → Change Source: forget the source and show the chooser.

@@ -60,6 +60,13 @@ public protocol ReminderSource: AnyObject {
     func remove(_ item: ReminderItem) async throws
     /// Opens the reminder in its own app (Reminders, Todoist, TickTick, Obsidian).
     func link(for item: ReminderItem) -> URL?
+    /// Asks the backend to sync with its server before the next read (Apple Reminders);
+    /// others fetch fresh anyway.
+    func refreshIfNeeded()
+}
+
+public extension ReminderSource {
+    func refreshIfNeeded() {}
 }
 
 /// A heading and its reminders, as the reminders view shows them.
@@ -137,6 +144,9 @@ public final class ReminderSettings {
     @ObservationIgnored private let defaults: UserDefaults
 
     public private(set) var placement: ReminderPlacement
+    /// False until the user picks a placement: the first time reminders open (as a tab,
+    /// the default) they ask whether to stay there or get their own window.
+    public private(set) var isPlacementChosen: Bool
     public private(set) var mode: ReminderMode
     /// Also list reminders completed today (ones ticked just now stay regardless).
     public private(set) var showsCompleted: Bool
@@ -154,7 +164,9 @@ public final class ReminderSettings {
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        placement = defaults.string(forKey: Key.placement).flatMap(ReminderPlacement.init(rawValue:)) ?? .window
+        let storedPlacement = defaults.string(forKey: Key.placement).flatMap(ReminderPlacement.init(rawValue:))
+        placement = storedPlacement ?? .tab
+        isPlacementChosen = storedPlacement != nil
         mode = defaults.string(forKey: Key.mode).flatMap(ReminderMode.init(rawValue:)) ?? .today
         showsCompleted = defaults.bool(forKey: Key.showsCompleted)
         hiddenListIDs = Set(defaults.stringArray(forKey: Key.hiddenListIDs) ?? [])
@@ -181,6 +193,7 @@ public final class ReminderSettings {
 
     public func setPlacement(_ value: ReminderPlacement) {
         placement = value
+        isPlacementChosen = true
         defaults.set(value.rawValue, forKey: Key.placement)
     }
 

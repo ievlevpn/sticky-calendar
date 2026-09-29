@@ -82,6 +82,8 @@ public final class ReminderKitSource: ReminderSource {
         try ek.remove(reminder, commit: true)
     }
 
+    public func refreshIfNeeded() { ek.refreshSourcesIfNecessary() }
+
     /// Reminders.app has no public link to one reminder, so this opens the app.
     public func link(for item: ReminderItem) -> URL? {
         URL(fileURLWithPath: "/System/Applications/Reminders.app")

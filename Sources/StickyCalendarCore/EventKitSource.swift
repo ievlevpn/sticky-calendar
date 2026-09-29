@@ -32,6 +32,8 @@ public final class EventKitSource: EventSource {
         ek.calendars(for: .event).map(Self.info)
     }
 
+    public func refreshIfNeeded() { ek.refreshSourcesIfNecessary() }
+
     public func defaultCalendarID() -> String? {
         ek.defaultCalendarForNewEvents?.calendarIdentifier
     }

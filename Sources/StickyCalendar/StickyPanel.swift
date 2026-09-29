@@ -17,7 +17,8 @@ final class StickyPanel: FloatingPanel {
 
     init(store: CalendarStore, settings: AppSettings, notepad: Notepad,
          reminderStore: ReminderStore, reminderSettings: ReminderSettings,
-         onToggleReminders: @escaping () -> Void, onSettings: @escaping () -> Void) {
+         onToggleReminders: @escaping () -> Void, onChooseReminderPlacement: @escaping (ReminderPlacement) -> Void,
+         onSettings: @escaping () -> Void) {
         self.store = store
         self.settings = settings
         self.notepad = notepad
@@ -35,6 +36,7 @@ final class StickyPanel: FloatingPanel {
             reminderStore: reminderStore,
             reminderSettings: reminderSettings,
             onToggleReminders: onToggleReminders,
+            onChooseReminderPlacement: onChooseReminderPlacement,
             onTogglePin: { [weak self] in self?.togglePinned() },
             onToggleCompact: { [weak self] in self?.toggleCompact() },
             onSettings: onSettings
@@ -66,8 +68,8 @@ final class StickyPanel: FloatingPanel {
     }
 
     private static let minimumSize = NSSize(width: 220, height: 300)
-    /// Wide enough for the full date and every header button (the header fits from 320).
-    private static let defaultWidth: CGFloat = 340
+    /// Wide enough for the full date and every header button, with room for longer names.
+    private static let defaultWidth: CGFloat = 360
 
     /// Windows saved by earlier versions (280 wide) cut the header short: widen them once,
     /// keeping the right edge. A width chosen after that is kept.
@@ -108,7 +110,7 @@ final class StickyPanel: FloatingPanel {
     /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning,
     /// ⌘O opens Calendar, ←/→ change day, ↑/↓ move the selection (or scroll), Page Up/Down
     /// scroll, Return edits the selection, Esc deselects —
-    /// unless a text field is editing. ⌘, opens Settings, ⌘M toggles compact mode and
+    /// unless a text field is editing. ⌘, opens Settings, ⌘R refreshes, ⌘M toggles compact mode and
     /// ⌘= / ⌘- / ⌘0 zoom, even from the note.
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -130,6 +132,9 @@ final class StickyPanel: FloatingPanel {
         switch (flags, key) {
         case ([.command], ","):
             onSettings()
+            return true
+        case ([.command], "r"):
+            if showsReminders { Task { await reminderStore.refresh() } } else { store.refresh() }
             return true
         case ([.command], "m"):
             toggleCompact()
