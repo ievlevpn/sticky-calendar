@@ -13,6 +13,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let onToggle: () -> Void
     private let onToggleReminders: () -> Void
     private let onSettings: () -> Void
+    private let onAbout: () -> Void
     private let updateChecker: UpdateChecker
 
     init(
@@ -21,6 +22,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         onToggle: @escaping () -> Void,
         onToggleReminders: @escaping () -> Void,
         onSettings: @escaping () -> Void,
+        onAbout: @escaping () -> Void,
         updateChecker: UpdateChecker
     ) {
         self.isPanelVisible = isPanelVisible
@@ -28,6 +30,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.onToggle = onToggle
         self.onToggleReminders = onToggleReminders
         self.onSettings = onSettings
+        self.onAbout = onAbout
         self.updateChecker = updateChecker
         super.init()
 
@@ -35,6 +38,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
+        let aboutItem = NSMenuItem(title: "About Sticky Calendar", action: #selector(openAbout), keyEquivalent: "")
+        aboutItem.target = self
+        menu.addItem(aboutItem)
+        menu.addItem(.separator())
         updateItem.target = self
         updateItem.isHidden = true
         menu.addItem(updateItem)
@@ -67,6 +74,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func toggle() { onToggle() }
     @objc private func toggleReminders() { onToggleReminders() }
     @objc private func openSettings() { onSettings() }
+    @objc private func openAbout() { onAbout() }
     @objc private func checkForUpdates() { UpdateActions.checkFromMenu(updateChecker) }
 
     @objc private func getUpdate() {

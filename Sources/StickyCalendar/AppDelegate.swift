@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: StickyPanel?
     private var statusItem: StatusItemController?
     private var settingsWindow: NSWindow?
+    private var aboutWindow: NSWindow?
     private var observers: [NSObjectProtocol] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -41,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onToggle: { [weak self] in self?.togglePanel() },
             onToggleReminders: { [weak self] in self?.toggleReminders() },
             onSettings: { [weak self] in self?.showSettings() },
+            onAbout: { [weak self] in self?.showAbout() },
             updateChecker: updateChecker
         )
         panel.orderFrontRegardless()
@@ -226,13 +228,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// app instead of switching away from it.
     private func showSettings() {
         if settingsWindow == nil {
-            let window = SettingsPanel(contentViewController: NSHostingController(
+            let window = UtilityPanel(contentViewController: NSHostingController(
                 rootView: SettingsView(
                     store: store, settings: settings, notepad: notepad, hotKey: hotKey,
                     reminderStore: reminderStore, reminderSettings: reminderSettings, remindersHotKey: remindersHotKey,
                     onReminderPlacement: { [weak self] in self?.setReminderPlacement($0) },
                     onChangeReminderSource: { [weak self] in self?.changeReminderSource() },
                     onNotePlacement: { [weak self] in self?.setNotePlacement($0) },
+                    onAbout: { [weak self] in self?.showAbout() },
                     updateChecker: updateChecker
                 )
             ))
@@ -242,6 +245,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         settingsWindow?.orderFrontRegardless()
         settingsWindow?.makeKey()
+    }
+
+    private func showAbout() {
+        if aboutWindow == nil {
+            let window = UtilityPanel(contentViewController: NSHostingController(rootView: AboutView(updateChecker: updateChecker)))
+            window.title = "About Sticky Calendar"
+            window.center()
+            aboutWindow = window
+        }
+        aboutWindow?.orderFrontRegardless()
+        aboutWindow?.makeKey()
     }
 
     private func observeClock() {
@@ -291,10 +305,10 @@ enum AppVersion {
     static let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
 }
 
-/// The Settings window: a floating, non-activating panel on every Space, including over
-/// full-screen apps (an ordinary window would open on the desktop and switch away).
+/// The Settings and About windows: floating, non-activating panels on every Space,
+/// including over full-screen apps (an ordinary window would open on the desktop and switch away).
 @MainActor
-final class SettingsPanel: NSPanel {
+final class UtilityPanel: NSPanel {
     convenience init(contentViewController: NSViewController) {
         self.init(contentRect: .zero, styleMask: [.titled, .closable, .nonactivatingPanel], backing: .buffered, defer: false)
         self.contentViewController = contentViewController

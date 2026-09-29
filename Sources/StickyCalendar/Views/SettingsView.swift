@@ -13,6 +13,7 @@ struct SettingsView: View {
     let onReminderPlacement: (ReminderPlacement) -> Void
     let onChangeReminderSource: () -> Void
     let onNotePlacement: (NotePlacement) -> Void
+    let onAbout: () -> Void
     let updateChecker: UpdateChecker
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -152,7 +153,12 @@ struct SettingsView: View {
             }
 
             Section("Updates") {
-                LabeledContent("Version", value: "\(AppVersion.short) (build \(AppVersion.build))")
+                LabeledContent("Version") {
+                    HStack {
+                        Text("\(AppVersion.short) (build \(AppVersion.build))")
+                        Button("About…", action: onAbout)
+                    }
+                }
                 Text(updateChecker.summary).foregroundStyle(.secondary)
                 if case .available(let info) = updateChecker.status {
                     Button("Get Version \(info.version.description)…") { UpdateActions.getUpdate(info) }
