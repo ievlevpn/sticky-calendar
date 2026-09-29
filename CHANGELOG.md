@@ -2,7 +2,7 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
-## Unreleased
+## 0.13.0 — 2026-09-29
 
 ### Added
 - **Hide from screen sharing and screenshots** (Settings → Appearance, off by default): asks macOS to leave Sticky Calendar's windows out of screen shares and screenshots. Some apps capture the screen in ways that may ignore this.
