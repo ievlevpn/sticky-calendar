@@ -22,11 +22,12 @@ final class MathRenderer {
     static let shared = MathRenderer()
 
     /// Latin Modern at 13 pt has about the x-height of the note's 11 pt system text.
-    static let fontSize: CGFloat = 13
+    static var fontSize: CGFloat { 13 * NoteStyle.zoom }
 
     private struct Key: Hashable {
         let tex: String
         let display: Bool
+        let size: CGFloat
     }
 
     /// Formulas by source, including the ones that failed (nil), so typing doesn't
@@ -34,7 +35,7 @@ final class MathRenderer {
     private var cache: [Key: RenderedMath?] = [:]
 
     func formula(_ tex: String, display: Bool) -> RenderedMath? {
-        let key = Key(tex: tex, display: display)
+        let key = Key(tex: tex, display: display, size: Self.fontSize)
         if let cached = cache[key] { return cached }
         if cache.count > 500 { cache.removeAll() } // edits leave old versions behind
         let formula = TypesetFormula(latex: tex, fontSize: Self.fontSize, display: display)

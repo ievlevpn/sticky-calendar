@@ -36,6 +36,12 @@ struct SettingsView: View {
                 Slider(value: Binding(get: { settings.opacity }, set: settings.setOpacity), in: AppSettings.opacityRange) {
                     Text("Opacity")
                 }
+                Picker("Zoom", selection: Binding(get: { settings.zoom }, set: settings.setZoom)) {
+                    ForEach(AppSettings.zoomSteps, id: \.self) { step in
+                        Text(step.formatted(.percent)).tag(step)
+                    }
+                }
+                .help("Size of the timeline and note. In the sticky: ⌘= bigger, ⌘- smaller, ⌘0 actual size.")
                 Picker("Calendar button", selection: Binding<CalendarJumpMode?>(
                     get: { settings.calendarJumpMode },
                     set: { if let mode = $0 { settings.setCalendarJumpMode(mode) } }

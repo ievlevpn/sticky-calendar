@@ -7,6 +7,8 @@ import SwiftUI
 /// gestures (create, move, resize, select, open editor).
 struct DayTimelineView: View {
     let store: CalendarStore
+    /// Scales hours, labels and event text together (Settings → Zoom, ⌘= / ⌘- / ⌘0).
+    let zoom: CGFloat
 
     /// The event being moved or resized, with its live (snapped) times.
     @State private var dragPreview: EventItem?
@@ -22,13 +24,13 @@ struct DayTimelineView: View {
     @State private var scrollBridge = ScrollBridge()
 
     private static let space = "timeline"
-    private let gutter: CGFloat = 44
+    private var gutter: CGFloat { 44 * zoom }
     private let trailingInset: CGFloat = 8
     /// Room above 00:00 and below 24:00 so their labels aren't clipped.
-    private let verticalInset: CGFloat = 8
+    private var verticalInset: CGFloat { 8 * zoom }
 
     var body: some View {
-        let geo = TimelineGeometry(dayStart: store.day)
+        let geo = TimelineGeometry(dayStart: store.day, pointsPerHour: TimelineGeometry.defaultPointsPerHour * Double(zoom))
         GeometryReader { viewport in
             let width = max(viewport.size.width - gutter - trailingInset, 20)
             ScrollView(.vertical) {
@@ -59,6 +61,7 @@ struct DayTimelineView: View {
                                                     padding: Double(verticalInset)) else { return }
                 scrollBridge.scroll(animated: true) { _ in target }
             }
+            .onChange(of: zoom) { old, new in keepCenter(from: old, to: new) }
             .onChange(of: store.editRequest) { _, request in
                 guard let request else { return }
                 focusTitleOnOpen = true
@@ -78,7 +81,7 @@ struct DayTimelineView: View {
     private func content(_ geo: TimelineGeometry, width: CGFloat, now: Date) -> some View {
         let slots = OverlapLayout.columns(for: store.timedEvents)
         return ZStack(alignment: .topLeading) {
-            HourGrid(geometry: geo, gutter: gutter)
+            HourGrid(geometry: geo, gutter: gutter, zoom: zoom)
             if store.isViewingToday { pastWash(geo, now: now, width: width) }
             creationSurface(geo, width: width)
             ForEach(store.timedEvents) { item in
@@ -104,6 +107,17 @@ struct DayTimelineView: View {
         }
         scrollBridge.scroll(animated: animated) { viewport in
             geo.scrollOffset(showing: y, at: fraction, viewportHeight: viewport, padding: Double(verticalInset))
+        }
+    }
+
+    /// Keeps the time in the middle of the view there when the zoom changes.
+    private func keepCenter(from old: CGFloat, to new: CGFloat) {
+        let hourHeight = TimelineGeometry.defaultPointsPerHour
+        let center = Double(scrollOffset - 8 * old + viewportHeight / 2) / (hourHeight * Double(old)) // in hours
+        let inset = Double(8 * new)
+        scrollBridge.scroll(animated: false) { viewport in
+            let target = center * hourHeight * Double(new) + inset - viewport / 2
+            return min(max(target, 0), max(24 * hourHeight * Double(new) + 2 * inset - viewport, 0))
         }
     }
 
@@ -134,7 +148,7 @@ struct DayTimelineView: View {
         if y >= 0 && y <= CGFloat(geo.height) {
             HStack(spacing: 0) {
                 Text(now.formatted(date: .omitted, time: .shortened))
-                    .font(.system(size: 9, weight: .bold).monospacedDigit())
+                    .font(.system(size: 9 * zoom, weight: .bold).monospacedDigit())
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .fixedSize()
@@ -144,8 +158,8 @@ struct DayTimelineView: View {
                     .frame(width: gutter, alignment: .trailing)
                 Rectangle().fill(Color.red).frame(height: 1.5)
             }
-            .frame(width: gutter + width, height: 14)
-            .offset(y: y - 7)
+            .frame(width: gutter + width, height: 14 * zoom)
+            .offset(y: y - 7 * zoom)
             .allowsHitTesting(false)
         }
     }
@@ -195,7 +209,8 @@ struct DayTimelineView: View {
             color: color,
             isSelected: store.selectedID == item.id,
             isPast: now >= shown.end,
-            height: CGFloat(frame.height)
+            height: CGFloat(frame.height),
+            zoom: zoom
         )
         .frame(width: max(columnWidth - 2, 4), height: CGFloat(frame.height))
         .overlay(alignment: .top) { resizeHandle(item, .resizeStart, geo: geo) }
@@ -233,7 +248,7 @@ struct DayTimelineView: View {
     private func draftBlock(_ item: EventItem, geo: TimelineGeometry, width: CGFloat) -> some View {
         let frame = geo.frame(for: item)
         let color = Color(rgba: store.calendarInfo(id: item.calendarID)?.color ?? .fallback)
-        return EventBlockView(item: item, color: color, isSelected: true, isPast: false, height: CGFloat(frame.height))
+        return EventBlockView(item: item, color: color, isSelected: true, isPast: false, height: CGFloat(frame.height), zoom: zoom)
             .frame(width: width, height: CGFloat(frame.height))
             .popover(
                 isPresented: Binding(get: { isDraftEditorOpen }, set: { if !$0 { isDraftEditorOpen = false } }),
@@ -288,6 +303,7 @@ struct DayTimelineView: View {
 struct HourGrid: View {
     let geometry: TimelineGeometry
     let gutter: CGFloat
+    let zoom: CGFloat
 
     var body: some View {
         Canvas { context, size in
@@ -299,7 +315,7 @@ struct HourGrid: View {
                 context.stroke(line, with: .color(.secondary.opacity(0.35)), lineWidth: 0.5)
 
                 let label = Text(String(format: "%02d:00", hour))
-                    .font(.system(size: 9, weight: .medium).monospacedDigit())
+                    .font(.system(size: 9 * zoom, weight: .medium).monospacedDigit())
                     .foregroundStyle(.secondary)
                 context.draw(context.resolve(label), at: CGPoint(x: gutter - 6, y: y), anchor: .trailing)
 
@@ -322,28 +338,31 @@ struct EventBlockView: View {
     let isSelected: Bool
     let isPast: Bool
     let height: CGFloat
+    let zoom: CGFloat
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
+        // Thresholds are in unzoomed points: zoom scales the text and the hours alike.
+        let height = self.height / zoom
         VStack(alignment: .leading, spacing: 1) {
             Text(item.title.isEmpty ? "New Event" : item.title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 11 * zoom, weight: .semibold))
                 .lineLimit(height > 34 ? 2 : 1)
             if height > 28 {
                 Text("\(item.start.formatted(date: .omitted, time: .shortened)) – \(item.end.formatted(date: .omitted, time: .shortened))")
-                    .font(.system(size: 10))
+                    .font(.system(size: 10 * zoom))
                     .foregroundStyle(.secondary)
             }
             if height > 46, let location = item.location, !location.isEmpty {
                 Text(location)
-                    .font(.system(size: 10))
+                    .font(.system(size: 10 * zoom))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }
-        .padding(.leading, 7)
-        .padding(.trailing, 4)
-        .padding(.vertical, height > 20 ? 3 : 0)
+        .padding(.leading, 7 * zoom)
+        .padding(.trailing, 4 * zoom)
+        .padding(.vertical, height > 20 ? 3 * zoom : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(shape.fill(color.opacity(isSelected ? 0.45 : 0.25)))
         .overlay(alignment: .leading) { Rectangle().fill(color).frame(width: 3) }

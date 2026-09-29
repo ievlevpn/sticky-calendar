@@ -58,4 +58,28 @@ struct AppSettingsTests {
         defaults.set("somethingElse", forKey: "calendarJumpMode")
         #expect(AppSettings(defaults: defaults).calendarJumpMode == nil)
     }
+
+    @Test func zoomStepsInAndOutAndStopsAtTheEnds() {
+        let s = AppSettings(defaults: defaults)
+        #expect(s.zoom == 1)
+        s.zoomIn()
+        #expect(s.zoom == 1.1)
+        s.zoomIn(); s.zoomIn()
+        #expect(s.zoom == 1.5)
+        for _ in 0..<10 { s.zoomIn() }
+        #expect(s.zoom == 2 && !s.canZoomIn)
+        s.resetZoom()
+        #expect(s.zoom == 1)
+        for _ in 0..<10 { s.zoomOut() }
+        #expect(s.zoom == 0.8 && !s.canZoomOut)
+    }
+
+    @Test func zoomPersistsAndSnapsToAStep() {
+        let s = AppSettings(defaults: defaults)
+        s.setZoom(1.3)
+        #expect(s.zoom == 1.25)
+        #expect(AppSettings(defaults: defaults).zoom == 1.25)
+        defaults.set(7.0, forKey: "zoom")
+        #expect(AppSettings(defaults: defaults).zoom == 2)
+    }
 }

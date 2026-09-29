@@ -6,6 +6,7 @@ import SwiftUI
 struct NotePane: View {
     let notepad: Notepad
     let editor: NoteEditorController
+    let zoom: CGFloat
     /// The most the window can give the note while leaving the timeline usable.
     let maxHeight: CGFloat
 
@@ -15,7 +16,7 @@ struct NotePane: View {
         let height = min(CGFloat(notepad.height), max(maxHeight, CGFloat(Notepad.minHeight)))
         VStack(spacing: 0) {
             bar(height: height)
-            NoteEditor(notepad: notepad, controller: editor)
+            NoteEditor(notepad: notepad, controller: editor, zoom: zoom)
         }
         .frame(height: height)
     }
@@ -104,6 +105,7 @@ final class NoteEditorController {
 struct NoteEditor: NSViewRepresentable {
     let notepad: Notepad
     let controller: NoteEditorController
+    let zoom: CGFloat
 
     func makeCoordinator() -> Coordinator { Coordinator(notepad: notepad) }
 
@@ -129,6 +131,7 @@ struct NoteEditor: NSViewRepresentable {
         textView.isRichText = false
         textView.allowsUndo = true
         textView.drawsBackground = false
+        NoteStyle.zoom = zoom
         textView.font = NoteStyle.font
         textView.textContainerInset = NSSize(width: 7, height: 6)
         textView.isAutomaticQuoteSubstitutionEnabled = false // keep Markdown's straight quotes
@@ -153,6 +156,11 @@ struct NoteEditor: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NoteTextView else { return }
         if controller.textView !== textView { controller.textView = textView }
+        if NoteStyle.zoom != zoom {
+            NoteStyle.zoom = zoom
+            textView.font = NoteStyle.font
+            context.coordinator.refresh(textView, force: true)
+        }
         if textView.string != notepad.text, !textView.hasMarkedText() {
             textView.string = notepad.text
             textView.undoManager?.removeAllActions() // its ranges refer to the old text
@@ -181,11 +189,12 @@ struct NoteEditor: NSViewRepresentable {
         }
 
         /// Restyles after an edit and re-hides syntax for the lines now being edited.
-        func refresh(_ textView: NSTextView) {
+        /// `force` redoes both after a zoom change, when neither the text nor the syntax moved.
+        func refresh(_ textView: NSTextView, force: Bool = false) {
             // Restyling mid-composition would break input methods; the commit restyles.
             guard !textView.hasMarkedText() else { return }
             let text = textView.string
-            if styled?.text != text {
+            if force || styled?.text != text {
                 let spans = MarkdownStyler.spans(in: text)
                 styled = (text, spans)
                 NoteStyle.apply(spans, to: textView)
@@ -195,7 +204,7 @@ struct NoteEditor: NSViewRepresentable {
                 text: text, spans: styled?.spans ?? [],
                 selection: editing ? textView.selectedRanges.map(\.rangeValue) : nil,
                 canDraw: { MathRenderer.shared.formula($0, display: $1) != nil }
-            ), in: textView)
+            ), in: textView, force: force)
         }
     }
 }
@@ -212,17 +221,18 @@ final class LivePreviewLayout: NSObject, @preconcurrency NSLayoutManagerDelegate
 
     /// How wide a decoration's blank is; display math takes the rest of its line.
     private func width(of decoration: LivePreview.Decoration, from x: CGFloat, in line: NSRect) -> CGFloat {
-        switch decoration {
-        case .bullet: 12
-        case .task: 17
-        case .quote: 9
+        let zoom = NoteStyle.zoom
+        return switch decoration {
+        case .bullet: 12 * zoom
+        case .task: 17 * zoom
+        case .quote: 9 * zoom
         case .math(let tex, let display, _):
             display ? max(line.maxX - x, 0) : (MathRenderer.shared.formula(tex, display: false)?.width ?? 0) + 2
         }
     }
 
-    func update(_ newValue: LivePreview, in textView: NSTextView) {
-        guard newValue != preview, let layoutManager = textView.layoutManager else { return }
+    func update(_ newValue: LivePreview, in textView: NSTextView, force: Bool = false) {
+        guard force || newValue != preview, let layoutManager = textView.layoutManager else { return }
         preview = newValue
         let all = NSRange(location: 0, length: (textView.string as NSString).length)
         layoutManager.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil)
@@ -297,7 +307,7 @@ final class LivePreviewLayout: NSObject, @preconcurrency NSLayoutManagerDelegate
         for (index, decoration) in preview.decorations where NSLocationInRange(index, characters) {
             guard case .math(let tex, let display, _) = decoration,
                   let formula = MathRenderer.shared.formula(tex, display: display) else { continue }
-            let padding = display ? Self.displayMathPadding : 1
+            let padding = (display ? Self.displayMathPadding : 1) * NoteStyle.zoom
             ascent = max(ascent, formula.ascent + padding)
             descent = max(descent, formula.descent + padding)
         }
@@ -408,11 +418,13 @@ final class NoteTextView: NSTextView {
             formula.draw(in: context, baselineOrigin: CGPoint(x: x, y: baseline), color: .labelColor)
         case .bullet:
             NSColor.secondaryLabelColor.setFill()
-            NSBezierPath(ovalIn: NSRect(x: rect.minX + 2, y: midY - 2, width: 4, height: 4)).fill()
+            let dot = 4 * NoteStyle.zoom
+            NSBezierPath(ovalIn: NSRect(x: rect.minX + dot / 2, y: midY - dot / 2, width: dot, height: dot)).fill()
         case .quote:
             NSColor.tertiaryLabelColor.setFill()
-            NSBezierPath(roundedRect: NSRect(x: rect.minX + 1, y: rect.minY, width: 2.5, height: rect.height),
-                         xRadius: 1.25, yRadius: 1.25).fill()
+            let bar = 2.5 * NoteStyle.zoom
+            NSBezierPath(roundedRect: NSRect(x: rect.minX + 1, y: rect.minY, width: bar, height: rect.height),
+                         xRadius: bar / 2, yRadius: bar / 2).fill()
         case .task(let checked, _):
             let name = checked ? "checkmark.square.fill" : "square"
             let config = NSImage.SymbolConfiguration(pointSize: NoteStyle.size, weight: .regular)
@@ -428,10 +440,13 @@ final class NoteTextView: NSTextView {
 /// Markdown styling at a single size; syntax that's showing is dimmed.
 @MainActor
 enum NoteStyle {
+    /// The app's zoom (Settings → Zoom); every size in the note, math included, follows it.
+    /// Set by `NoteEditor`, which restyles when it changes.
+    static var zoom: CGFloat = 1
     /// Same as event titles on the timeline.
-    static let size: CGFloat = 11
-    static let font = NSFont.systemFont(ofSize: size)
-    static let base: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.labelColor]
+    static var size: CGFloat { 11 * zoom }
+    static var font: NSFont { NSFont.systemFont(ofSize: size) }
+    static var base: [NSAttributedString.Key: Any] { [.font: font, .foregroundColor: NSColor.labelColor] }
 
     static func apply(_ spans: [MarkdownSpan], to textView: NSTextView) {
         guard let storage = textView.textStorage else { return }

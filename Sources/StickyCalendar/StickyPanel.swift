@@ -103,7 +103,8 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
     /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning,
     /// ⌘O opens Calendar, ←/→ change day, ↑/↓ move the selection (or scroll), Page Up/Down
     /// scroll, Return edits the selection, Esc deselects —
-    /// unless a text field is editing. ⌘, opens Settings, even from the note.
+    /// unless a text field is editing. ⌘, opens Settings and ⌘= / ⌘- / ⌘0 zoom, even from
+    /// the note.
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let keyCode = event.keyCode
@@ -119,13 +120,25 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
 
     private func handleKey(keyCode: UInt16, flags: NSEvent.ModifierFlags, key: String?, window: ObjectIdentifier?) -> Bool {
         guard window == ObjectIdentifier(self) else { return false }
-        if flags == [.command], key == "," {
+        // Arrow, page, keypad and forward-delete keys carry these flags even with no modifier held.
+        let flags = flags.subtracting([.numericPad, .function])
+        switch (flags, key) {
+        case ([.command], ","):
             onSettings()
             return true
+        case ([.command], "="), ([.command], "+"), ([.command, .shift], "+"), ([.command, .shift], "="):
+            settings.zoomIn()
+            return true
+        case ([.command], "-"):
+            settings.zoomOut()
+            return true
+        case ([.command], "0"):
+            settings.resetZoom()
+            return true
+        default:
+            break
         }
         guard !(firstResponder is NSTextView) else { return false }
-        // Arrow, page and forward-delete keys carry these flags even with no modifier held.
-        let flags = flags.subtracting([.numericPad, .function])
         switch (keyCode, flags, key) {
         case (51, [], _), (117, [], _): // delete, forward delete
             store.requestDeleteSelected()

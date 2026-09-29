@@ -24,8 +24,8 @@ struct StickyContentView: View {
             )
             switch store.access {
             case .granted:
-                AllDayStrip(store: store)
-                DayTimelineView(store: store)
+                AllDayStrip(store: store, zoom: settings.zoom)
+                DayTimelineView(store: store, zoom: settings.zoom)
             case .notDetermined:
                 Spacer()
                 Text("Waiting for Calendar access…").foregroundStyle(.secondary)
@@ -34,7 +34,7 @@ struct StickyContentView: View {
                 AccessDeniedView()
             }
             if notepad.isVisible {
-                NotePane(notepad: notepad, editor: noteEditor, maxHeight: contentHeight - reservedHeight)
+                NotePane(notepad: notepad, editor: noteEditor, zoom: settings.zoom, maxHeight: contentHeight - reservedHeight)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
