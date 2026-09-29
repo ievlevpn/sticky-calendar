@@ -4,6 +4,10 @@ What changed in each release of Sticky Calendar, newest first. Each section beco
 
 ## Unreleased
 
+### Added
+- **Links and Markdown in reminders' notes**: the editor's notes show formatting as you type (like the note), and links open when clicked. A reminder with a link in its notes gets a 🔗 button in the list that opens it directly.
+- **Plain web addresses are links** now, in the note and in reminders, and **#tags** are highlighted.
+
 ### Fixed
 - **Checking for updates** failed with "Couldn't check for updates" when GitHub's API was busy (it allows 60 anonymous requests an hour per network, shared by every app on it). The app now falls back to GitHub's website, retries a failed check within the hour instead of the next day, and says what happened.
 
