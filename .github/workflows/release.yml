@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    env:
+      TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the build number is the commit count
+
+      - name: Version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: ./scripts/test.sh
+
+      - name: Import signing certificate
+        env:
+          SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: ./scripts/ci-import-cert.sh
+
+      - name: Build DMG
+        env:
+          REQUIRE_SIGNING: "1"
+        run: ./scripts/build-dmg.sh "$VERSION"
+
+      - name: Verify DMG
+        env:
+          REQUIRE_SIGNING: "1"
+        run: ./scripts/verify-dmg.sh "build/StickyCalendar-$VERSION.dmg" "$VERSION"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "build/StickyCalendar-$VERSION.dmg" \
+            --title "Sticky Calendar $VERSION" --generate-notes
+
+      # Inactive until the repo is public and the TAP_TOKEN secret exists (see RELEASING.md).
+      - name: Update Homebrew cask
+        if: env.TAP_TOKEN != ''
+        run: |
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/ievlevpn/homebrew-tap.git" "$RUNNER_TEMP/tap"
+          ./scripts/update-cask.sh "$VERSION" "$(cat "build/StickyCalendar-$VERSION.dmg.sha256")" \
+            "$RUNNER_TEMP/tap/Casks/sticky-calendar.rb"
+          cd "$RUNNER_TEMP/tap"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/sticky-calendar.rb
+          git commit -m "sticky-calendar $VERSION"
+          git push
