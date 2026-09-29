@@ -216,6 +216,10 @@ struct NoteEditor: NSViewRepresentable {
         }
 
         func refresh(_ textView: NSTextView, force: Bool = false) { layout.refresh(textView, force: force) }
+
+        func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+            MarkdownLinks.open(link)
+        }
     }
 }
 
