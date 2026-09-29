@@ -82,6 +82,11 @@ public final class ReminderKitSource: ReminderSource {
         try ek.remove(reminder, commit: true)
     }
 
+    /// Reminders.app has no public link to one reminder, so this opens the app.
+    public func link(for item: ReminderItem) -> URL? {
+        URL(fileURLWithPath: "/System/Applications/Reminders.app")
+    }
+
     // MARK: Private
 
     /// EventKit calls back on a background queue; the reminders are turned into values there.

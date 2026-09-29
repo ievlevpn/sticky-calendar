@@ -114,7 +114,7 @@ struct RemindersView: View {
         let color = Color(rgba: list?.color ?? .fallback)
         let writable = list?.isWritable ?? false
         return HStack(alignment: .firstTextBaseline, spacing: 7 * zoom) {
-            Button { store.toggle(item) } label: {
+            Button { Task { await store.toggle(item) } } label: {
                 Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 13 * zoom))
                     .foregroundStyle(item.isCompleted ? color.opacity(0.6) : color)
@@ -152,9 +152,9 @@ struct RemindersView: View {
         .padding(.vertical, 3 * zoom)
         .contextMenu {
             Button("Rename") { startRename(item) }.disabled(!writable)
-            Button(item.isCompleted ? "Mark as Not Done" : "Mark as Done") { store.toggle(item) }.disabled(!writable)
+            Button(item.isCompleted ? "Mark as Not Done" : "Mark as Done") { Task { await store.toggle(item) } }.disabled(!writable)
             Divider()
-            Button("Delete", role: .destructive) { store.delete(item) }.disabled(!writable)
+            Button("Delete", role: .destructive) { Task { await store.delete(item) } }.disabled(!writable)
             Divider()
             Button("Open Reminders") { SystemLinks.openRemindersApp() }
         }
@@ -205,8 +205,13 @@ struct RemindersView: View {
 
     private func add() {
         let listID = settings.mode == .lists ? addListID : nil
-        if store.add(newText, listID: listID) != nil { newText = "" }
+        let text = newText
+        newText = ""
         focus = .add
+        Task {
+            // Put the text back if it couldn't be added, so nothing typed is lost.
+            if await store.add(text, listID: listID) == nil, newText.isEmpty { newText = text }
+        }
     }
 
     private func startRename(_ item: ReminderItem) {
@@ -218,7 +223,8 @@ struct RemindersView: View {
     private func commitRename(_ item: ReminderItem) {
         guard renamingID == item.id else { return }
         renamingID = nil
-        store.rename(item, to: renameText)
+        let title = renameText
+        Task { await store.rename(item, to: title) }
     }
 
     /// The time for today's timed ones; the day for others ("Tomorrow", "Mon", "26 Sep");

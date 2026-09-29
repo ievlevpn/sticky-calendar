@@ -10,37 +10,56 @@ public final class ReminderStore {
     public private(set) var lists: [ReminderListInfo] = []
     public private(set) var items: [ReminderItem] = []
     public var lastError: String?
+    /// Whether a source is chosen; without one, the view asks where reminders come from.
+    public private(set) var hasSource = false
 
     @ObservationIgnored public let undoManager = UndoManager()
-    @ObservationIgnored private let source: ReminderSource
+    @ObservationIgnored public private(set) var source: ReminderSource?
     @ObservationIgnored private let settings: ReminderSettings
     @ObservationIgnored private let calendar: Calendar
     @ObservationIgnored private let now: () -> Date
     /// Ticked here since the last day change: they stay in view, struck through, so a
     /// mis-click can be seen and undone.
     private var recentlyCompleted: Set<String> = []
-    /// Bumped on every reload; a slower, older fetch must not overwrite a newer one.
+    /// Bumped on every reload and source change; an older fetch must not overwrite a newer one.
     @ObservationIgnored private var generation = 0
+    /// Changes still being saved (undo and redo run as tasks); see `idle()`.
+    @ObservationIgnored private var work: [Task<Void, Never>] = []
 
-    public init(source: ReminderSource, settings: ReminderSettings,
+    public init(source: ReminderSource?, settings: ReminderSettings,
                 calendar: Calendar = .autoupdatingCurrent, now: @escaping () -> Date = Date.init) {
-        self.source = source
         self.settings = settings
         self.calendar = calendar
         self.now = now
-        access = source.currentAccess()
-        source.onChange = { [weak self] in self?.reloadSoon() }
+        use(source, reload: false)
+    }
+
+    /// Switches to another source (or none), dropping what the old one showed.
+    public func use(_ source: ReminderSource?, reload shouldReload: Bool = true) {
+        self.source?.onChange = nil
+        self.source = source
+        hasSource = source != nil
+        generation += 1
+        items = []
+        lists = []
+        recentlyCompleted = []
+        undoManager.removeAllActions()
+        access = source?.currentAccess() ?? .notDetermined
+        source?.onChange = { [weak self] in self?.reloadSoon() }
+        if shouldReload { reloadSoon() }
     }
 
     // MARK: Loading
 
     /// Asks for access the first time the reminders view is shown, not at launch.
     public func requestAccessIfNeeded() async {
+        guard let source else { return }
         if source.currentAccess() == .notDetermined { _ = await source.requestAccess() }
         await reload()
     }
 
     public func reload() async {
+        guard let source else { return }
         access = source.currentAccess()
         guard access == .granted else {
             lists = []
@@ -49,15 +68,34 @@ public final class ReminderStore {
         }
         generation += 1
         let mine = generation
-        let startOfToday = calendar.startOfDay(for: now())
-        let fetched = await source.reminders(completedSince: startOfToday)
-        guard mine == generation else { return }
-        lists = source.lists()
-        items = fetched
+        do {
+            let fetched = try await source.reminders(completedSince: calendar.startOfDay(for: now()))
+            guard mine == generation else { return }
+            lists = source.lists()
+            items = fetched
+            access = source.currentAccess()
+        } catch {
+            guard mine == generation else { return }
+            access = source.currentAccess()
+            lastError = error.localizedDescription
+        }
     }
 
     private func reloadSoon() {
-        Task { await reload() }
+        run { await self.reload() }
+    }
+
+    /// Waits until changes in progress (including undo and redo) are saved.
+    public func idle() async {
+        while !work.isEmpty {
+            let pending = work
+            work = []
+            for task in pending { await task.value }
+        }
+    }
+
+    private func run(_ body: @escaping @MainActor () async -> Void) {
+        work.append(Task { await body() })
     }
 
     /// A new day: yesterday's ticks no longer need to linger.
@@ -139,70 +177,76 @@ public final class ReminderStore {
     // MARK: Changes
 
     /// Ticks or unticks.
-    public func toggle(_ item: ReminderItem) {
-        var changed = current(item)
+    public func toggle(_ item: ReminderItem) async {
+        let original = current(item)
+        var changed = original
         changed.isCompleted.toggle()
         changed.completionDate = changed.isCompleted ? now() : nil
         if changed.isCompleted { recentlyCompleted.insert(item.id) }
-        save(changed, undo: current(item), actionName: changed.isCompleted ? "Complete Reminder" : "Uncomplete Reminder")
+        await save(changed, undo: original, actionName: changed.isCompleted ? "Complete Reminder" : "Uncomplete Reminder")
     }
 
-    public func rename(_ item: ReminderItem, to title: String) {
+    public func rename(_ item: ReminderItem, to title: String) async {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let original = current(item)
         guard !trimmed.isEmpty, trimmed != original.title else { return }
         var changed = original
         changed.title = trimmed
-        save(changed, undo: original, actionName: "Rename Reminder")
+        await save(changed, undo: original, actionName: "Rename Reminder")
     }
 
     /// Adds a reminder from typed text (a date in it becomes the due date). In Today mode
     /// an undated one is due today. Goes to `listID`, or the default list.
     @discardableResult
-    public func add(_ text: String, listID: String? = nil) -> ReminderItem? {
+    public func add(_ text: String, listID: String? = nil) async -> ReminderItem? {
         var input = ReminderInput.parse(text)
         guard !input.title.isEmpty else { return nil }
         if input.due == nil, settings.mode == .today {
             input.due = calendar.startOfDay(for: now())
         }
         guard let list = listID ?? defaultWritableListID() else {
-            lastError = "There's no reminders list to add to."
+            lastError = "There's no list to add to."
             return nil
         }
-        return insert(ReminderItem(title: input.title, listID: list, due: input.due, dueHasTime: input.dueHasTime))
+        return await insert(ReminderItem(title: input.title, listID: list, due: input.due, dueHasTime: input.dueHasTime))
     }
 
-    public func delete(_ item: ReminderItem) {
+    public func delete(_ item: ReminderItem) async {
+        guard let source else { return }
         let target = current(item)
+        items.removeAll { $0.id == target.id }
         do {
-            try source.remove(target)
+            try await source.remove(target)
             undoManager.registerUndo(withTarget: self) { store in
-                MainActor.assumeIsolated { _ = store.insert(target) }
+                MainActor.assumeIsolated { store.run { _ = await store.insert(target) } }
             }
             undoManager.setActionName("Delete Reminder")
-            items.removeAll { $0.id == target.id }
             reloadSoon()
         } catch {
             fail(error)
         }
     }
 
-    /// The list new reminders go to: the system default if it's visible and writable,
+    /// The list new reminders go to: the source's default if it's visible and writable,
     /// else the first visible writable list.
     public func defaultWritableListID() -> String? {
         let writable = visibleLists.filter(\.isWritable)
-        if let id = source.defaultListID(), writable.contains(where: { $0.id == id }) { return id }
+        if let id = source?.defaultListID(), writable.contains(where: { $0.id == id }) { return id }
         return writable.first?.id
     }
 
+    /// Opens `item` in its source's app.
+    public func link(for item: ReminderItem) -> URL? { source?.link(for: item) }
+
     /// Saves as new (also restores a deleted one, which gets a new identifier).
-    private func insert(_ item: ReminderItem) -> ReminderItem? {
+    private func insert(_ item: ReminderItem) async -> ReminderItem? {
+        guard let source else { return nil }
         var fresh = item
         fresh.id = ""
         do {
-            let saved = try source.save(fresh)
+            let saved = try await source.save(fresh)
             undoManager.registerUndo(withTarget: self) { store in
-                MainActor.assumeIsolated { store.delete(saved) }
+                MainActor.assumeIsolated { store.run { await store.delete(saved) } }
             }
             undoManager.setActionName("New Reminder")
             items.append(saved)
@@ -214,24 +258,34 @@ public final class ReminderStore {
         }
     }
 
-    private func save(_ changed: ReminderItem, undo original: ReminderItem, actionName: String) {
+    /// Shows the change at once, then saves it; puts the original back if saving fails.
+    private func save(_ changed: ReminderItem, undo original: ReminderItem, actionName: String) async {
+        guard let source else { return }
+        replace(changed)
         do {
-            let saved = try source.save(changed)
+            let saved = try await source.save(changed)
+            replace(saved)
             undoManager.registerUndo(withTarget: self) { store in
                 MainActor.assumeIsolated {
-                    if original.isCompleted != saved.isCompleted {
-                        store.toggle(saved)
-                    } else {
-                        store.save(original, undo: saved, actionName: actionName)
+                    store.run {
+                        if original.isCompleted != saved.isCompleted {
+                            await store.toggle(saved)
+                        } else {
+                            await store.save(original, undo: saved, actionName: actionName)
+                        }
                     }
                 }
             }
             undoManager.setActionName(actionName)
-            if let i = items.firstIndex(where: { $0.id == saved.id }) { items[i] = saved }
             reloadSoon()
         } catch {
+            replace(original)
             fail(error)
         }
+    }
+
+    private func replace(_ item: ReminderItem) {
+        if let i = items.firstIndex(where: { $0.id == item.id }) { items[i] = item }
     }
 
     /// The latest known state of `item` (a view may hold an older copy).
@@ -243,4 +297,12 @@ public final class ReminderStore {
         lastError = error.localizedDescription
         reloadSoon()
     }
+}
+
+/// A failure a network source can report in plain words.
+public struct ReminderSourceError: LocalizedError, Equatable {
+    public let message: String
+    public init(_ message: String) { self.message = message }
+    public var errorDescription: String? { message }
+
 }

@@ -42,20 +42,24 @@ public struct ReminderItem: Identifiable, Equatable, Sendable {
     public var isNew: Bool { id.isEmpty }
 }
 
-/// Everything the reminder store needs from a backend. `ReminderKitSource` is the real one.
+/// Everything the reminder store needs from a backend: Apple Reminders (`ReminderKitSource`),
+/// Todoist, TickTick or an Obsidian vault.
 @MainActor
 public protocol ReminderSource: AnyObject {
-    /// Called whenever the reminders database changes (including our own saves).
+    /// Called when the backend knows its data changed (including our own saves).
     var onChange: (() -> Void)? { get set }
     func currentAccess() -> CalendarAccess
     func requestAccess() async -> CalendarAccess
+    /// The lists as of the last `reminders(completedSince:)`.
     func lists() -> [ReminderListInfo]
     func defaultListID() -> String?
     /// Every incomplete reminder, plus those completed since `completedSince`.
-    func reminders(completedSince: Date) async -> [ReminderItem]
+    func reminders(completedSince: Date) async throws -> [ReminderItem]
     /// Creates the reminder if `item.isNew`, otherwise updates it. Returns the saved state.
-    func save(_ item: ReminderItem) throws -> ReminderItem
-    func remove(_ item: ReminderItem) throws
+    func save(_ item: ReminderItem) async throws -> ReminderItem
+    func remove(_ item: ReminderItem) async throws
+    /// Opens the reminder in its own app (Reminders, Todoist, TickTick, Obsidian).
+    func link(for item: ReminderItem) -> URL?
 }
 
 /// A heading and its reminders, as the reminders view shows them.

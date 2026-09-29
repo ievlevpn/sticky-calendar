@@ -65,11 +65,12 @@ struct ReminderStoreTests {
     @Test func tickingKeepsItInViewAndUndoUnticks() async {
         source.stored = [reminder("1", "Buy milk", due: at(0))]
         await store.reload()
-        store.toggle(store.items[0])
+        await store.toggle(store.items[0])
         await store.reload()
         #expect(source.stored[0].isCompleted)
         #expect(store.todaySections.first?.items.first?.isCompleted == true) // struck, still shown
         store.undoManager.undo()
+        await store.idle()
         await store.reload()
         #expect(!source.stored[0].isCompleted)
     }
@@ -77,21 +78,45 @@ struct ReminderStoreTests {
     @Test func renameAndUndo() async {
         source.stored = [reminder("1", "Buy mlik", due: at(0))]
         await store.reload()
-        store.rename(store.items[0], to: "  Buy milk ")
+        await store.rename(store.items[0], to: "  Buy milk ")
         #expect(source.stored[0].title == "Buy milk")
         store.undoManager.undo()
+        await store.idle()
         #expect(source.stored[0].title == "Buy mlik")
-        store.rename(store.items[0], to: "   ")                                // blank: ignored
+        await store.rename(store.items[0], to: "   ")                                // blank: ignored
         #expect(source.stored[0].title == "Buy mlik")
+    }
+
+    @Test func aFailedSaveShowsTheOriginalAndAnError() async {
+        source.stored = [reminder("1", "Buy milk", due: at(0))]
+        await store.reload()
+        source.failNextSave = true
+        await store.toggle(store.items[0])
+        #expect(store.items[0].isCompleted == false)
+        #expect(store.lastError != nil)
+    }
+
+    @Test func switchingSourcesStartsOver() async {
+        source.stored = [reminder("1", "Buy milk", due: at(0))]
+        await store.reload()
+        let other = FakeReminderSource()
+        other.stored = [reminder("9", "Other", due: at(0))]
+        store.use(other)
+        await store.idle()
+        #expect(store.items.map(\.title) == ["Other"])
+        store.use(nil)
+        #expect(!store.hasSource && store.items.isEmpty)
     }
 
     @Test func addingInTodayModeIsDueTodayAndGoesToTheDefaultList() async {
         await store.reload()
-        let added = store.add("Buy milk")
+        let added = await store.add("Buy milk")
         #expect(added?.due == at(0) && added?.dueHasTime == false && added?.listID == "home")
         settings.setMode(.lists)
-        #expect(store.add("Someday", listID: "work")?.due == nil)
-        #expect(store.add("   ") == nil)
+        let someday = await store.add("Someday", listID: "work")
+        #expect(someday?.due == nil)
+        let blank = await store.add("   ")
+        #expect(blank == nil)
     }
 
     @Test func newRemindersSkipHiddenOrReadOnlyDefaultLists() async {
@@ -105,9 +130,10 @@ struct ReminderStoreTests {
     @Test func deleteAndUndoRestoresIt() async {
         source.stored = [reminder("1", "Buy milk", due: at(0))]
         await store.reload()
-        store.delete(store.items[0])
+        await store.delete(store.items[0])
         #expect(source.stored.isEmpty)
         store.undoManager.undo()
+        await store.idle()
         #expect(source.stored.map(\.title) == ["Buy milk"])
     }
 

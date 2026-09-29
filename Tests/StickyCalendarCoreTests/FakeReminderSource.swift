@@ -12,6 +12,7 @@ final class FakeReminderSource: ReminderSource {
     ]
     var defaultID: String? = "home"
     var stored: [ReminderItem] = []
+    var failNextSave = false
     private var nextID = 1
 
     func currentAccess() -> CalendarAccess { access }
@@ -24,6 +25,10 @@ final class FakeReminderSource: ReminderSource {
     }
 
     func save(_ item: ReminderItem) throws -> ReminderItem {
+        if failNextSave {
+            failNextSave = false
+            throw ReminderSourceError("Couldn't save")
+        }
         var saved = item
         if item.isNew {
             saved.id = "r\(nextID)"
@@ -35,6 +40,8 @@ final class FakeReminderSource: ReminderSource {
         }
         return saved
     }
+
+    func link(for item: ReminderItem) -> URL? { URL(string: "fake://\(item.id)") }
 
     func remove(_ item: ReminderItem) throws {
         guard let i = stored.firstIndex(where: { $0.id == item.id }) else { throw EventSourceError.notFound }
