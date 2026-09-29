@@ -14,6 +14,7 @@ struct SettingsView: View {
     let onChangeReminderSource: () -> Void
     let onNotePlacement: (NotePlacement) -> Void
     let onAbout: () -> Void
+    let onHidesFromScreenCapture: (Bool) -> Void
     let updateChecker: UpdateChecker
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -51,6 +52,12 @@ struct SettingsView: View {
                     }
                 }
                 .help("Size of the timeline and note. In the sticky: ⌘= bigger, ⌘- smaller, ⌘0 actual size.")
+                Toggle("Hide from screen sharing and screenshots", isOn: Binding(
+                    get: { settings.hidesFromScreenCapture }, set: onHidesFromScreenCapture
+                ))
+                Text("Asks macOS to leave Sticky Calendar's windows out of screen shares and screenshots. Some apps capture the screen in ways that may ignore this.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Picker("Calendar button", selection: Binding<CalendarJumpMode?>(
                     get: { settings.calendarJumpMode },
                     set: { if let mode = $0 { settings.setCalendarJumpMode(mode) } }

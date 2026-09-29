@@ -14,6 +14,7 @@ public final class AppSettings {
         static let isCompact = "isCompact"
         static let expandedHeight = "expandedHeight"
         static let globalHotKey = "globalHotKey"
+        static let hidesFromCapture = "hidesFromScreenCapture"
     }
 
     public static let opacityRange: ClosedRange<Double> = 0.5...1.0
@@ -36,6 +37,9 @@ public final class AppSettings {
     public private(set) var expandedHeight: Double?
     /// The system-wide shortcut that shows or hides the sticky.
     public private(set) var globalHotKey: GlobalHotKeyChoice
+    /// Marks the app's windows as not to be captured, so screen sharing and screenshots
+    /// leave them out (where the capturing app honours it). Off by default.
+    public private(set) var hidesFromScreenCapture: Bool
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -47,6 +51,12 @@ public final class AppSettings {
         isCompact = defaults.bool(forKey: Key.isCompact)
         expandedHeight = defaults.object(forKey: Key.expandedHeight) as? Double
         globalHotKey = defaults.string(forKey: Key.globalHotKey).flatMap(GlobalHotKeyChoice.init(rawValue:)) ?? .controlOptionS
+        hidesFromScreenCapture = defaults.bool(forKey: Key.hidesFromCapture)
+    }
+
+    public func setHidesFromScreenCapture(_ hides: Bool) {
+        hidesFromScreenCapture = hides
+        defaults.set(hides, forKey: Key.hidesFromCapture)
     }
 
     /// `expandedHeight` is the window height to restore when leaving compact mode.

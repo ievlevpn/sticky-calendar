@@ -53,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKey.apply(settings.globalHotKey.carbonKey)
         remindersHotKey.apply(reminderSettings.hotKey.carbonKey)
         scheduleReminderRefresh()
+        applyScreenCapturePrivacy()
 
         observeClock()
         Task { await store.requestAccessIfNeeded() }
@@ -80,6 +81,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: Screen sharing
+
+    /// Settings → Hide from screen sharing: every window of ours (the stickies, Settings,
+    /// About) is marked not to be captured, or capturable again. Called when windows open.
+    private func applyScreenCapturePrivacy() {
+        let sharing: NSWindow.SharingType = settings.hidesFromScreenCapture ? .none : .readOnly
+        for window in [panel, remindersPanel, notesPanel, settingsWindow, aboutWindow] as [NSWindow?] {
+            window?.sharingType = sharing
+        }
+    }
+
+    private func setHidesFromScreenCapture(_ hides: Bool) {
+        settings.setHidesFromScreenCapture(hides)
+        applyScreenCapturePrivacy()
+    }
+
     // MARK: Note
 
     private func toggleNoteWindow() {
@@ -96,6 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
         }
         notepad.setVisible(true)
+        applyScreenCapturePrivacy()
         notesPanel?.orderFrontRegardless()
         if focus {
             notesPanel?.makeKey()
@@ -176,6 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
         }
         reminderSettings.setVisible(true)
+        applyScreenCapturePrivacy()
         remindersPanel?.orderFrontRegardless()
     }
 
@@ -236,6 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     onChangeReminderSource: { [weak self] in self?.changeReminderSource() },
                     onNotePlacement: { [weak self] in self?.setNotePlacement($0) },
                     onAbout: { [weak self] in self?.showAbout() },
+                    onHidesFromScreenCapture: { [weak self] in self?.setHidesFromScreenCapture($0) },
                     updateChecker: updateChecker
                 )
             ))
@@ -243,6 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.center()
             settingsWindow = window
         }
+        applyScreenCapturePrivacy()
         settingsWindow?.orderFrontRegardless()
         settingsWindow?.makeKey()
     }
@@ -254,6 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.center()
             aboutWindow = window
         }
+        applyScreenCapturePrivacy()
         aboutWindow?.orderFrontRegardless()
         aboutWindow?.makeKey()
     }

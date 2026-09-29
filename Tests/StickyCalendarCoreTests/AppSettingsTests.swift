@@ -100,4 +100,11 @@ struct AppSettingsTests {
         s.setGlobalHotKey(.off)
         #expect(AppSettings(defaults: defaults).globalHotKey == .off)
     }
+
+    @Test func hidingFromScreenCaptureIsOptInAndPersists() {
+        let s = AppSettings(defaults: defaults)
+        #expect(!s.hidesFromScreenCapture)
+        s.setHidesFromScreenCapture(true)
+        #expect(AppSettings(defaults: defaults).hidesFromScreenCapture)
+    }
 }
