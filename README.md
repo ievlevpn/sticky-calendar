@@ -15,7 +15,8 @@ A tiny menu-bar app that shows the day's calendar as a floating, always-on-top t
 </picture>
 
 Scroll through the day (48 pt per hour — a taller window shows more hours); the red
-ruler marks the current time and the clock button jumps back to it.
+ruler marks the current time and the clock button jumps back to it. The header keeps just
+the date: hover its ••• button and the other buttons unfurl (click ••• to keep them open).
 Drag to create, move and resize events; double-click to edit; ⌫ to delete; ⌘Z to undo;
 ⌃S (or the pin button) toggles whether the sticky stays on top of other windows;
 ⌘O (or the calendar button) opens Calendar, optionally on the day you're viewing;

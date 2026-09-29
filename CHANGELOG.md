@@ -4,6 +4,9 @@ What changed in each release of Sticky Calendar, newest first. Each section beco
 
 ## Unreleased
 
+### Changed
+- **A tidier header**: it shows just the date and day arrows. Hover the ••• button and the rest (Reminders, Note, Pin, Refresh, Open in Calendar, Compact, Settings) unfurl in a capsule, with a label naming each one and its shortcut; click ••• to keep it open.
+
 ### Added
 - An **About** window (top of the menu-bar menu, or About… in Settings) with the version, links to the website, what's new and reporting an issue, and credits.
 
