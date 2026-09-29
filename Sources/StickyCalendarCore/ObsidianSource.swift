@@ -64,7 +64,8 @@ public final class ObsidianSource: ReminderSource {
             let due = task.due(calendar: calendar)
             items.append(ReminderItem(
                 id: id, title: task.title, listID: entry.path, due: due?.date, dueHasTime: due?.hasTime ?? false,
-                isCompleted: task.isDone, completionDate: done
+                isCompleted: task.isDone, completionDate: done,
+                notes: entry.notes, priority: task.priority
             ))
         }
         files = scanned.files
@@ -89,6 +90,7 @@ public final class ObsidianSource: ReminderSource {
         if current?.date != item.due || (current?.hasTime ?? false) != item.dueHasTime {
             task.setDue(item.due, hasTime: item.dueHasTime, calendar: calendar)
         }
+        if task.priority != item.priority { task.priority = item.priority }
         try rewrite(path) { lines in lines[index] = task.line }
         known[item.id] = (path, index, task.line)
         var saved = item
@@ -101,6 +103,9 @@ public final class ObsidianSource: ReminderSource {
         try rewrite(path) { lines in lines.remove(at: index) }
         known[item.id] = nil
     }
+
+    /// A task's notes are the indented lines under it; they're shown but edited in Obsidian.
+    public var canEditNotes: Bool { false }
 
     public func link(for item: ReminderItem) -> URL? {
         let path = known[item.id]?.path ?? item.listID
@@ -146,19 +151,29 @@ public final class ObsidianSource: ReminderSource {
         try String(contentsOf: url, encoding: .utf8).components(separatedBy: "\n")
     }
 
-    /// Task lines of every Markdown file, skipping hidden folders (.obsidian, .trash, .git).
-    nonisolated static func scan(_ vault: URL) -> (tasks: [(path: String, line: Int, text: String)], files: [String]) {
+    /// Task lines of every Markdown file, skipping hidden folders (.obsidian, .trash, .git),
+    /// each with its notes: the more indented, non-task lines right under it.
+    nonisolated static func scan(_ vault: URL) -> (tasks: [(path: String, line: Int, text: String, notes: String?)], files: [String]) {
         guard let walker = FileManager.default.enumerator(
             at: vault, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else { return ([], []) }
-        var tasks: [(String, Int, String)] = []
+        var tasks: [(String, Int, String, String?)] = []
         var files: Set<String> = []
         let root = vault.standardizedFileURL.path
         for case let url as URL in walker where url.pathExtension.lowercased() == "md" {
             guard let text = try? String(contentsOf: url, encoding: .utf8), text.contains("[") else { continue }
             let path = String(url.standardizedFileURL.path.dropFirst(root.count + 1))
-            for (index, line) in text.components(separatedBy: "\n").enumerated() where ObsidianTask(line: line) != nil {
-                tasks.append((path, index, line))
+            let lines = text.components(separatedBy: "\n")
+            for (index, line) in lines.enumerated() {
+                guard let task = ObsidianTask(line: line) else { continue }
+                var notes: [String] = []
+                for next in lines.dropFirst(index + 1) {
+                    let indent = next.prefix { $0 == " " || $0 == "\t" }
+                    guard !next.trimmingCharacters(in: .whitespaces).isEmpty, indent.count > task.indent.count,
+                          ObsidianTask(line: next) == nil else { break }
+                    notes.append(next.trimmingCharacters(in: .whitespaces))
+                }
+                tasks.append((path, index, line, notes.isEmpty ? nil : notes.joined(separator: "\n")))
                 files.insert(path)
             }
         }

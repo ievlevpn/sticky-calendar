@@ -73,6 +73,8 @@ public final class ReminderKitSource: ReminderSource {
             }
         }
         if reminder.isCompleted != item.isCompleted { reminder.isCompleted = item.isCompleted }
+        if (reminder.notes ?? "") != (item.notes ?? "") { reminder.notes = item.notes }
+        if Self.priority(reminder.priority) != item.priority { reminder.priority = Self.ekPriority(item.priority) }
         try ek.save(reminder, commit: true)
         return Self.item(reminder, calendar: calendar)
     }
@@ -148,7 +150,28 @@ public final class ReminderKitSource: ReminderSource {
             due: due.date,
             dueHasTime: due.hasTime,
             isCompleted: reminder.isCompleted,
-            completionDate: reminder.completionDate
+            completionDate: reminder.completionDate,
+            notes: reminder.notes.flatMap { $0.isEmpty ? nil : $0 },
+            priority: priority(reminder.priority)
         )
+    }
+
+    /// EventKit: 0 none, 1–4 high, 5 medium, 6–9 low.
+    private nonisolated static func priority(_ value: Int) -> ReminderPriority {
+        switch value {
+        case 1...4: .high
+        case 5: .medium
+        case 6...9: .low
+        default: .none
+        }
+    }
+
+    private static func ekPriority(_ priority: ReminderPriority) -> Int {
+        switch priority {
+        case .none: 0
+        case .high: 1
+        case .medium: 5
+        case .low: 9
+        }
     }
 }

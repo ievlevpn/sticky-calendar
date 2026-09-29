@@ -137,6 +137,48 @@ struct ReminderStoreTests {
         #expect(source.stored.map(\.title) == ["Buy milk"])
     }
 
+    @Test func searchLooksEverywhereAndPrefersTitles() async {
+        source.stored = [
+            reminder("1", "Call the bank", list: "work", due: at(0, day: 30)),   // not due today
+            reminder("2", "Groceries", due: at(0)),
+            reminder("3", "Water plants", due: nil),
+        ]
+        source.stored[1].notes = "oat milk, bananas, coffee beans"
+        await store.reload()
+        #expect(store.search("clbnk").map(\.title) == ["Call the bank"])   // outside Today too
+        #expect(store.search("bananas").map(\.title) == ["Groceries"])       // in the notes
+        #expect(store.search("zzz").isEmpty)
+    }
+
+    @Test func editChangesEverythingAtOnceAndUndoes() async {
+        source.stored = [reminder("1", "Call bank", due: at(0))]
+        await store.reload()
+        await store.edit(store.items[0], title: "Call the bank", due: at(10, day: 29), dueHasTime: true,
+                         priority: .high, notes: "  ask about fees  ")
+        let saved = source.stored[0]
+        #expect(saved.title == "Call the bank" && saved.due == at(10, day: 29) && saved.dueHasTime)
+        #expect(saved.priority == .high && saved.notes == "ask about fees")
+        store.undoManager.undo()
+        await store.idle()
+        #expect(source.stored[0].title == "Call bank" && source.stored[0].priority == .none && source.stored[0].notes == nil)
+    }
+
+    @Test func editLeavesNotesAloneWhereTheyCantBeWritten() async {
+        source.stored = [reminder("1", "Task", due: at(0))]
+        source.stored[0].notes = "from the vault"
+        source.canEditNotes = false
+        await store.reload()
+        await store.edit(store.items[0], title: "Task", due: nil, dueHasTime: false, priority: .low, notes: "changed")
+        #expect(source.stored[0].notes == "from the vault" && source.stored[0].priority == .low && source.stored[0].due == nil)
+    }
+
+    @Test func moreImportantFirstOnTheSameDay() async {
+        source.stored = [reminder("1", "A", due: at(0)), reminder("2", "B", due: at(0))]
+        source.stored[1].priority = .high
+        await store.reload()
+        #expect(store.todaySections.first?.items.map(\.title) == ["B", "A"])
+    }
+
     @Test func settingsPersist() {
         let name = "ReminderSettings-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
@@ -155,6 +197,22 @@ struct ReminderStoreTests {
         #expect(o.provider == .obsidian && o.obsidianVaultPath == "/v" && o.obsidianInboxPath == "Tasks/Inbox.md")
         o.setProvider(nil)
         #expect(ReminderSettings(defaults: defaults).provider == nil)
+    }
+}
+
+struct FuzzyMatchTests {
+    @Test func findsLettersInOrder() {
+        #expect(FuzzyMatch.score("clbnk", in: "Call the bank") != nil)
+        #expect(FuzzyMatch.score("bank call", in: "Call the bank") == nil)   // out of order
+        #expect(FuzzyMatch.score("xyz", in: "Call the bank") == nil)
+        #expect(FuzzyMatch.score("   ", in: "anything") == nil)
+    }
+
+    @Test func runsAndWordStartsRankHigher() {
+        let exact = FuzzyMatch.score("bank", in: "Call the bank")!
+        let scattered = FuzzyMatch.score("bank", in: "Bring a nice kettle")!
+        #expect(exact > scattered)
+        #expect(FuzzyMatch.score("milk", in: "Buy milk")! > FuzzyMatch.score("milk", in: "Buy milk and eggs for the week")!)
     }
 }
 

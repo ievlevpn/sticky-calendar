@@ -155,7 +155,9 @@ public final class TodoistSource: ReminderSource {
     public func save(_ item: ReminderItem) async throws -> ReminderItem {
         try await authorized {
             if item.isNew {
-                var body: [String: Any] = ["content": item.title, "project_id": item.listID]
+                var body: [String: Any] = ["content": item.title, "project_id": item.listID,
+                                           "priority": Self.todoistPriority(item.priority)]
+                if let notes = item.notes { body["description"] = notes }
                 body.merge(dueFields(item)) { $1 }
                 let row = try await client.send("POST", "tasks", body: body) as? [String: Any]
                 return row.flatMap(self.item) ?? item
@@ -164,6 +166,8 @@ public final class TodoistSource: ReminderSource {
             var body: [String: Any] = [:]
             if before?.title != item.title { body["content"] = item.title }
             if before?.due != item.due || before?.dueHasTime != item.dueHasTime { body.merge(dueFields(item)) { $1 } }
+            if before?.notes != item.notes { body["description"] = item.notes ?? "" }
+            if before?.priority != item.priority { body["priority"] = Self.todoistPriority(item.priority) }
             if !body.isEmpty { try await client.send("POST", "tasks/\(item.id)", body: body) }
             if before?.isCompleted != item.isCompleted {
                 try await client.send("POST", "tasks/\(item.id)/\(item.isCompleted ? "close" : "reopen")", body: nil)
@@ -222,11 +226,26 @@ public final class TodoistSource: ReminderSource {
             }
         }
         let completedAt = (row["completed_at"] as? String).flatMap { RemoteDates.dateTime($0, floating: calendar.timeZone) }
+        let description = row["description"] as? String
         return ReminderItem(
             id: id, title: title, listID: row["project_id"] as? String ?? "", due: due, dueHasTime: hasTime,
-            isCompleted: row["checked"] as? Bool ?? false, completionDate: completedAt
+            isCompleted: row["checked"] as? Bool ?? false, completionDate: completedAt,
+            notes: description?.isEmpty == false ? description : nil,
+            priority: Self.priority(todoist: row["priority"] as? Int ?? 1)
         )
     }
+
+    /// Todoist's 4 is its top ("p1"), 1 is normal.
+    static func priority(todoist value: Int) -> ReminderPriority {
+        switch value {
+        case 4: .high
+        case 3: .medium
+        case 2: .low
+        default: .none
+        }
+    }
+
+    static func todoistPriority(_ priority: ReminderPriority) -> Int { priority.rawValue + 1 }
 
     private func dueFields(_ item: ReminderItem) -> [String: Any] {
         guard let due = item.due else { return ["due_string": "no date"] }
@@ -304,7 +323,9 @@ public final class TickTickSource: ReminderSource {
     public func save(_ item: ReminderItem) async throws -> ReminderItem {
         try await authorized {
             if item.isNew {
-                var body: [String: Any] = ["title": item.title, "projectId": item.listID]
+                var body: [String: Any] = ["title": item.title, "projectId": item.listID,
+                                           "priority": Self.tickTickPriority(item.priority)]
+                if let notes = item.notes { body["content"] = notes }
                 body.merge(dueFields(item)) { $1 }
                 let row = try await client.send("POST", "task", body: body) as? [String: Any]
                 return row.flatMap(self.item) ?? item
@@ -316,6 +337,8 @@ public final class TickTickSource: ReminderSource {
             var body: [String: Any] = ["id": item.id, "projectId": item.listID]
             if before?.title != item.title { body["title"] = item.title }
             if before?.due != item.due || before?.dueHasTime != item.dueHasTime { body.merge(dueFields(item)) { $1 } }
+            if before?.notes != item.notes { body["content"] = item.notes ?? "" }
+            if before?.priority != item.priority { body["priority"] = Self.tickTickPriority(item.priority) }
             // Reopening isn't a documented call; setting the status back is what TickTick's apps do.
             if before?.isCompleted == true, !item.isCompleted { body["status"] = 0 }
             if body.count > 2 { try await client.send("POST", "task/\(item.id)", body: body) }
@@ -356,12 +379,27 @@ public final class TickTickSource: ReminderSource {
             due = allDay ? RemoteDates.day(RemoteDates.dayString(instant, in: zone), in: calendar.timeZone) : instant
         }
         let status = row["status"] as? Int ?? 0
+        let content = row["content"] as? String
         return ReminderItem(
             id: id, title: title, listID: row["projectId"] as? String ?? inboxID, due: due, dueHasTime: due != nil && !allDay,
             isCompleted: status != 0,
-            completionDate: (row["completedTime"] as? String).flatMap { RemoteDates.dateTime($0, floating: zone) }
+            completionDate: (row["completedTime"] as? String).flatMap { RemoteDates.dateTime($0, floating: zone) },
+            notes: content?.isEmpty == false ? content : nil,
+            priority: Self.priority(tickTick: row["priority"] as? Int ?? 0)
         )
     }
+
+    /// TickTick: 0 none, 1 low, 3 medium, 5 high.
+    static func priority(tickTick value: Int) -> ReminderPriority {
+        switch value {
+        case 5...: .high
+        case 3...4: .medium
+        case 1...2: .low
+        default: .none
+        }
+    }
+
+    static func tickTickPriority(_ priority: ReminderPriority) -> Int { [0, 1, 3, 5][priority.rawValue] }
 
     private func dueFields(_ item: ReminderItem) -> [String: Any] {
         guard let due = item.due else { return ["dueDate": NSNull()] }

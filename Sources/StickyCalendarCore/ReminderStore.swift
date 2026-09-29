@@ -12,6 +12,8 @@ public final class ReminderStore {
     public var lastError: String?
     /// A fetch is under way (for the refresh button's spinner).
     public private(set) var isLoading = false
+    /// Bumped by ⌘F; the reminders view opens and focuses its search field.
+    public private(set) var searchRequest = 0
     /// Whether a source is chosen; without one, the view asks where reminders come from.
     public private(set) var hasSource = false
 
@@ -84,6 +86,8 @@ public final class ReminderStore {
             lastError = error.localizedDescription
         }
     }
+
+    public func requestSearch() { searchRequest += 1 }
 
     /// The refresh button and ⌘R: syncs the source with its server if it can, then reloads.
     public func refresh() async {
@@ -166,7 +170,7 @@ public final class ReminderStore {
     }
 
     /// Open before done; then by due date (undated last), a timed one before an untimed
-    /// one on the same day, then by title.
+    /// one on the same day, then by importance, then by title.
     private func sorted(_ items: [ReminderItem]) -> [ReminderItem] {
         items.sorted { a, b in
             if a.isCompleted != b.isCompleted { return !a.isCompleted }
@@ -180,6 +184,7 @@ public final class ReminderStore {
                 if a.dueHasTime != b.dueHasTime { return a.dueHasTime }
                 if a.dueHasTime, da != db { return da < db }
             }
+            if a.priority != b.priority { return a.priority > b.priority }
             return a.title.localizedStandardCompare(b.title) == .orderedAscending
         }
     }
@@ -195,6 +200,41 @@ public final class ReminderStore {
         if changed.isCompleted { recentlyCompleted.insert(item.id) }
         await save(changed, undo: original, actionName: changed.isCompleted ? "Complete Reminder" : "Uncomplete Reminder")
     }
+
+    /// The editor's changes: title, due date and time, importance, notes.
+    public func edit(_ item: ReminderItem, title: String, due: Date?, dueHasTime: Bool,
+                     priority: ReminderPriority, notes: String?) async {
+        let original = current(item)
+        var changed = original
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { changed.title = trimmed }
+        changed.due = due
+        changed.dueHasTime = due != nil && dueHasTime
+        changed.priority = priority
+        if source?.canEditNotes ?? false {
+            let text = notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            changed.notes = text.isEmpty ? nil : text
+        }
+        guard changed != original else { return }
+        await save(changed, undo: original, actionName: "Edit Reminder")
+    }
+
+    /// Reminders matching `query` loosely, across every visible list (whatever the mode),
+    /// best first; titles count more than notes. Completed ones only if they'd be shown.
+    public func search(_ query: String) -> [ReminderItem] {
+        shownItems
+            .compactMap { item -> (ReminderItem, Int)? in
+                let inTitle = FuzzyMatch.score(query, in: item.title).map { $0 * 2 }
+                let inNotes = item.notes.flatMap { FuzzyMatch.score(query, in: $0) }
+                guard let best = [inTitle, inNotes].compactMap({ $0 }).max() else { return nil }
+                return (item, best)
+            }
+            .sorted { $0.1 != $1.1 ? $0.1 > $1.1 : !$0.0.isCompleted && $1.0.isCompleted }
+            .map(\.0)
+    }
+
+    /// Whether the source can write notes (the editor shows them read-only otherwise).
+    public var canEditNotes: Bool { source?.canEditNotes ?? false }
 
     public func rename(_ item: ReminderItem, to title: String) async {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)

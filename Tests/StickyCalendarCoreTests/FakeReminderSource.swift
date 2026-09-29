@@ -13,6 +13,7 @@ final class FakeReminderSource: ReminderSource {
     var defaultID: String? = "home"
     var stored: [ReminderItem] = []
     var failNextSave = false
+    var canEditNotes = true
     private var nextID = 1
 
     func currentAccess() -> CalendarAccess { access }

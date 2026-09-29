@@ -15,7 +15,8 @@ struct TodoistSourceTests {
             // Two pages, to check the cursor is followed.
             if call.query["cursor"] == nil {
                 return (200, ["results": [
-                    ["id": "t1", "content": "Buy milk", "project_id": "p1", "checked": false,
+                    ["id": "t1", "content": "Buy milk", "project_id": "p1", "checked": false, "priority": 4,
+                     "description": "oat, not dairy",
                      "due": ["date": "2026-09-28", "string": "today", "is_recurring": false]],
                 ], "next_cursor": "c2"])
             }
@@ -48,6 +49,18 @@ struct TodoistSourceTests {
         #expect(source.lists().map(\.title) == ["Inbox", "Work"])
         #expect(source.defaultListID() == "p1")
         #expect(source.currentAccess() == .granted)
+    }
+
+    @Test func readsPriorityAndDescription() async throws {
+        let (session, log) = StubHTTP.session(Self.handler)
+        let source = TodoistSource(token: "t", session: session, calendar: utc)
+        var milk = try await source.reminders(completedSince: at(0))[0]
+        #expect(milk.priority == .high && milk.notes == "oat, not dairy")
+        milk.priority = .low
+        milk.notes = "any milk"
+        _ = try await source.save(milk)
+        let update = try #require(log().last { $0.method == "POST" })
+        #expect(update.body["priority"] as? String == "2" && update.body["description"] as? String == "any milk")
     }
 
     @Test func sendsOnlyWhatChanged() async throws {
@@ -102,6 +115,7 @@ struct TickTickSourceTests {
         case ("GET", "/open/v1/project/w1/data"):
             return (200, ["tasks": [
                 ["id": "b", "projectId": "w1", "title": "Standup", "status": 0, "isAllDay": false,
+                 "priority": 3, "content": "room 4",
                  "dueDate": "2026-09-28T09:30:00.000+0000", "timeZone": "UTC"],
             ]])
         default:
@@ -116,6 +130,7 @@ struct TickTickSourceTests {
         #expect(items.map(\.title) == ["Buy milk", "Standup"])
         #expect(items[0].due == at(0) && !items[0].dueHasTime)     // 28 Sep, whatever the zone
         #expect(items[1].due == at(9, 30) && items[1].dueHasTime)
+        #expect(items[1].priority == .medium && items[1].notes == "room 4")
         #expect(source.lists().map(\.title) == ["Inbox", "Work"])   // the closed project is left out
         #expect(source.defaultListID() == "inbox123")
         #expect(!log().contains { $0.path.contains("/old/") })

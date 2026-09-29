@@ -60,6 +60,25 @@ public struct ObsidianTask: Equatable, Sendable {
         return nil
     }
 
+    /// ⏫/🔺 high, 🔼 medium, 🔽/⏬ low.
+    public var priority: ReminderPriority {
+        get {
+            if metadata.contains("🔺") || metadata.contains("⏫") { return .high }
+            if metadata.contains("🔼") { return .medium }
+            if metadata.contains("🔽") || metadata.contains("⏬") { return .low }
+            return .none
+        }
+        set {
+            for marker: Character in ["🔺", "⏫", "🔼", "🔽", "⏬"] { remove(marker) }
+            switch newValue {
+            case .none: break
+            case .low: append("🔽")
+            case .medium: append("🔼")
+            case .high: append("⏫")
+            }
+        }
+    }
+
     public func doneDate(calendar: Calendar) -> Date? {
         value(after: "✅").flatMap { Self.parse($0, withTime: false, calendar: calendar) }
     }

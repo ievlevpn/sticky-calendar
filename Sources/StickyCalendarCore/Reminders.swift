@@ -25,10 +25,12 @@ public struct ReminderItem: Identifiable, Equatable, Sendable {
     public var dueHasTime: Bool
     public var isCompleted: Bool
     public var completionDate: Date?
+    public var notes: String?
+    public var priority: ReminderPriority
 
     public init(
         id: String = "", title: String, listID: String, due: Date? = nil, dueHasTime: Bool = false,
-        isCompleted: Bool = false, completionDate: Date? = nil
+        isCompleted: Bool = false, completionDate: Date? = nil, notes: String? = nil, priority: ReminderPriority = .none
     ) {
         self.id = id
         self.title = title
@@ -37,9 +39,30 @@ public struct ReminderItem: Identifiable, Equatable, Sendable {
         self.dueHasTime = dueHasTime
         self.isCompleted = isCompleted
         self.completionDate = completionDate
+        self.notes = notes
+        self.priority = priority
     }
 
     public var isNew: Bool { id.isEmpty }
+}
+
+/// How important a reminder is; each source maps it to its own scale.
+public enum ReminderPriority: Int, Sendable, CaseIterable, Comparable {
+    case none, low, medium, high
+
+    public static func < (a: Self, b: Self) -> Bool { a.rawValue < b.rawValue }
+
+    /// "!", "!!", "!!!", as Reminders shows it.
+    public var marks: String { String(repeating: "!", count: rawValue) }
+
+    public var name: String {
+        switch self {
+        case .none: "None"
+        case .low: "Low"
+        case .medium: "Medium"
+        case .high: "High"
+        }
+    }
 }
 
 /// Everything the reminder store needs from a backend: Apple Reminders (`ReminderKitSource`),
@@ -63,10 +86,13 @@ public protocol ReminderSource: AnyObject {
     /// Asks the backend to sync with its server before the next read (Apple Reminders);
     /// others fetch fresh anyway.
     func refreshIfNeeded()
+    /// Whether notes can be written back (Obsidian's are read-only here).
+    var canEditNotes: Bool { get }
 }
 
 public extension ReminderSource {
     func refreshIfNeeded() {}
+    var canEditNotes: Bool { true }
 }
 
 /// A heading and its reminders, as the reminders view shows them.
@@ -280,5 +306,29 @@ public enum ReminderSources {
                 ObsidianSource(vault: URL(fileURLWithPath: $0), inboxPath: settings.obsidianInboxPath)
             }
         }
+    }
+}
+
+/// Letters of the query in order, anywhere in the text ("clbnk" finds "Call the bank"),
+/// scored so that runs of consecutive letters and letters at the start of words rank higher.
+public enum FuzzyMatch {
+    /// nil when not every letter of `query` is found in order; higher is better.
+    public static func score(_ query: String, in text: String) -> Int? {
+        let needle = Array(query.lowercased().filter { !$0.isWhitespace })
+        guard !needle.isEmpty else { return nil }
+        let hay = Array(text.lowercased())
+        var score = 0
+        var at = 0
+        var previous = -2
+        for letter in needle {
+            guard let found = hay[at...].firstIndex(of: letter) else { return nil }
+            score += 1
+            if found == previous + 1 { score += 5 }                       // a run
+            if found == 0 || !(hay[found - 1].isLetter || hay[found - 1].isNumber) { score += 3 } // word start
+            previous = found
+            at = found + 1
+        }
+        // Shorter texts with the same letters are closer matches.
+        return score * 100 - hay.count
     }
 }

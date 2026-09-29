@@ -14,6 +14,18 @@ struct ObsidianTaskTests {
         #expect(ObsidianTask(line: "- [ ] Standup ⏰ 2026-09-28 09:30")!.due(calendar: utc)! == (at(9, 30), true))
     }
 
+    @Test func priorityReadsEveryMarkerAndWritesTheUsualOnes() {
+        #expect(ObsidianTask(line: "- [ ] a ⏫")!.priority == .high)
+        #expect(ObsidianTask(line: "- [ ] a 🔺")!.priority == .high)
+        #expect(ObsidianTask(line: "- [ ] a 🔼 📅 2026-09-30")!.priority == .medium)
+        #expect(ObsidianTask(line: "- [ ] a ⏬")!.priority == .low)
+        var task = ObsidianTask(line: "- [ ] Call 🔼 📅 2026-09-30")!
+        task.priority = .high
+        #expect(task.line == "- [ ] Call 📅 2026-09-30 ⏫")
+        task.priority = .none
+        #expect(task.line == "- [ ] Call 📅 2026-09-30")
+    }
+
     @Test func plainListItemsAndProseAreNotTasks() {
         #expect(ObsidianTask(line: "- a bullet") == nil)
         #expect(ObsidianTask(line: "[ ] no bullet") == nil)
@@ -101,6 +113,16 @@ struct ObsidianSourceTests {
         slides.isCompleted = true
         await #expect(throws: ReminderSourceError.self) { try await s.save(slides) }
         #expect(try read("Projects/Q4.md") == "- [ ] Slides edited\n")      // untouched
+    }
+
+    @Test func notesAreTheIndentedLinesUnderATask() async throws {
+        try "- [ ] Plan trip\n    Flights via Lisbon\n    Budget 800\n- [ ] Next task\n  - [ ] subtask\n".write(
+            to: vault.appendingPathComponent("Trip.md"), atomically: true, encoding: .utf8)
+        let s = source()
+        let items = try await s.reminders(completedSince: at(0))
+        #expect(items.first { $0.title == "Plan trip" }?.notes == "Flights via Lisbon\nBudget 800")
+        #expect(items.first { $0.title == "Next task" }?.notes == nil)   // a subtask isn't a note
+        #expect(!s.canEditNotes)
     }
 
     @Test func aMissingVaultIsDenied() {
