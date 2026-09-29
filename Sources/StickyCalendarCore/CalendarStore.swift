@@ -184,6 +184,12 @@ public final class CalendarStore {
     /// Back to today, scrolled so the current time is in view (even if already on today).
     public func jumpToNow() { goToToday() }
 
+    /// Shows `date`'s day (the month picker).
+    public func goTo(_ date: Date) {
+        followsToday = calendar.isDate(date, inSameDayAs: now())
+        setDay(date)
+    }
+
     public func goToDay(offset: Int) {
         let target = calendar.date(byAdding: .day, value: offset, to: day)!
         followsToday = calendar.isDate(target, inSameDayAs: now())

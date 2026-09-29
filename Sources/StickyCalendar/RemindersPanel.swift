@@ -26,7 +26,8 @@ final class RemindersPanel: FloatingPanel {
             store: store, settings: settings, appSettings: appSettings,
             onTogglePin: { [weak self] in self?.togglePinned() },
             onRefresh: { Task { await store.refresh() } },
-            onSettings: onSettings
+            onSettings: onSettings,
+            onHide: onClose
         ), defaultPlacement: { panel in
             guard let neighbour else { return panel.placeTopRight() }
             panel.setFrameOrigin(NSPoint(x: neighbour.frame.minX - panel.frame.width - 12,
@@ -88,11 +89,13 @@ struct RemindersWindowContent: View {
     let onTogglePin: () -> Void
     let onRefresh: () -> Void
     let onSettings: () -> Void
+    let onHide: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             RemindersHeader(settings: settings, isRefreshing: store.isLoading,
-                            onTogglePin: onTogglePin, onRefresh: onRefresh, onSettings: onSettings)
+                            onTogglePin: onTogglePin, onRefresh: onRefresh, onSettings: onSettings, onHide: onHide)
+                .zIndex(1) // its menu's label hangs over the list
             // Already placed in a window, so the placement question never shows here.
             RemindersView(store: store, settings: settings, zoom: appSettings.zoom, onChoosePlacement: { _ in })
         }

@@ -350,34 +350,35 @@ struct RemindersView: View {
     }
 }
 
-/// The reminders window's header: its title, refresh, pin and settings.
+/// The reminders window's header: its title, and its actions behind a ••• menu.
 struct RemindersHeader: View {
     let settings: ReminderSettings
     let isRefreshing: Bool
     let onTogglePin: () -> Void
     let onRefresh: () -> Void
     let onSettings: () -> Void
+    let onHide: () -> Void
+
+    @State private var isMenuOpen = false
+    @State private var width: CGFloat = 260
 
     var body: some View {
         HStack(spacing: 8) {
             Text("Reminders").font(.system(size: 13, weight: .semibold)).lineLimit(1)
-            Spacer()
-            if isRefreshing {
-                ProgressView().controlSize(.small).frame(width: 16, height: 16)
-            } else {
-                Button(action: onRefresh) { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.borderless)
-                    .help("Refresh (⌘R)")
-            }
-            Button(action: onTogglePin) { Image(systemName: settings.isPinned ? "pin.fill" : "pin.slash") }
-                .buttonStyle(.borderless)
-                .help(settings.isPinned ? "Unpin: behave like a normal window (⌃S)" : "Pin: keep on top of other windows (⌃S)")
-            Button(action: onSettings) { Image(systemName: "gearshape") }
-                .buttonStyle(.borderless)
-                .help("Settings (⌘,)")
+                .fadedWhileMenuOpen(isMenuOpen)
+            Spacer(minLength: 0)
+            UnfurlMenu(items: [
+                UnfurlItem(id: "refresh", symbol: "arrow.clockwise", isBusy: isRefreshing, name: "Refresh",
+                           shortcut: "⌘R", action: onRefresh),
+                UnfurlItem(id: "pin", symbol: settings.isPinned ? "pin.fill" : "pin.slash", isActive: settings.isPinned,
+                           name: settings.isPinned ? "Unpin" : "Pin on top", shortcut: "⌃S", action: onTogglePin),
+                UnfurlItem(id: "settings", symbol: "gearshape", name: "Settings", shortcut: "⌘,", action: onSettings),
+                UnfurlItem(id: "hide", symbol: "xmark", name: "Hide reminders", shortcut: "⌘W", action: onHide),
+            ], availableWidth: width, isOpen: $isMenuOpen)
         }
         .padding(.horizontal, 12)
         .frame(height: 32)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
     }

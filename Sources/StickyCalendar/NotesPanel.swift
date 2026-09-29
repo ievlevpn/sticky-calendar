@@ -26,7 +26,8 @@ final class NotesPanel: FloatingPanel {
             notepad: notepad, editor: editor, appSettings: appSettings,
             onTogglePin: { [weak self] in self?.togglePinned() },
             onAttach: onAttach,
-            onSettings: onSettings
+            onSettings: onSettings,
+            onHide: onClose
         ), defaultPlacement: { panel in
             guard let neighbour else { return panel.placeTopRight() }
             panel.setFrameOrigin(NSPoint(x: neighbour.frame.minX - panel.frame.width - 12, y: neighbour.frame.minY))
@@ -75,31 +76,33 @@ struct NoteWindowContent: View {
     /// Puts the note back under the timeline.
     let onAttach: () -> Void
     let onSettings: () -> Void
+    let onHide: () -> Void
+
+    @State private var isMenuOpen = false
+    @State private var width: CGFloat = 280
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                NoteTitle(notepad: notepad, size: 13)
-                Spacer(minLength: 8)
-                Button(action: onAttach) { Image(systemName: "arrow.down.left.square") }
-                    .buttonStyle(.borderless)
-                    .help("Put the note back under the timeline")
-                Button("Clear") { editor.clear() }
-                    .buttonStyle(.borderless)
-                    .font(.system(size: 11))
-                    .disabled(notepad.text.isEmpty)
-                    .help("Clear the note (⌘Z to undo)")
-                Button(action: onTogglePin) { Image(systemName: notepad.isWindowPinned ? "pin.fill" : "pin.slash") }
-                    .buttonStyle(.borderless)
-                    .help(notepad.isWindowPinned ? "Unpin: behave like a normal window (⌃S)" : "Pin: keep on top of other windows (⌃S)")
-                Button(action: onSettings) { Image(systemName: "gearshape") }
-                    .buttonStyle(.borderless)
-                    .help("Settings (⌘,)")
+                NoteTitle(notepad: notepad, size: 13).fadedWhileMenuOpen(isMenuOpen)
+                Spacer(minLength: 0)
+                UnfurlMenu(items: [
+                    UnfurlItem(id: "clear", symbol: "eraser", name: "Clear the note (⌘Z undoes)", action: editor.clear),
+                    UnfurlItem(id: "attach", symbol: "arrow.down.left.square", name: "Put back under the timeline",
+                               action: onAttach),
+                    UnfurlItem(id: "pin", symbol: notepad.isWindowPinned ? "pin.fill" : "pin.slash",
+                               isActive: notepad.isWindowPinned, name: notepad.isWindowPinned ? "Unpin" : "Pin on top",
+                               shortcut: "⌃S", action: onTogglePin),
+                    UnfurlItem(id: "settings", symbol: "gearshape", name: "Settings", shortcut: "⌘,", action: onSettings),
+                    UnfurlItem(id: "hide", symbol: "xmark", name: "Hide note", shortcut: "⌘W", action: onHide),
+                ], availableWidth: width, isOpen: $isMenuOpen)
             }
             .padding(.horizontal, 12)
             .frame(height: 32)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             .background(.bar)
             .overlay(alignment: .bottom) { Divider() }
+            .zIndex(1) // its menu's label hangs over the note
             NoteEditor(notepad: notepad, controller: editor, zoom: appSettings.zoom)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

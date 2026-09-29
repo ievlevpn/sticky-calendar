@@ -36,6 +36,14 @@ struct CalendarStoreTests {
         #expect(store.visibleCalendars.map(\.id) == ["work", "holidays"])
     }
 
+    @Test func goesToAPickedDate() {
+        let store = makeStore()
+        store.goTo(at(15, day: 30))
+        #expect(store.day == at(0, day: 30) && !store.isViewingToday)
+        store.goTo(at(9))
+        #expect(store.isViewingToday)
+    }
+
     @Test func externalChangesTriggerReload() {
         let store = makeStore()
         source.stored = [event("new", at(9), at(10))]
@@ -281,5 +289,30 @@ struct CalendarStoreTests {
         store.cancelPendingDelete() // SwiftUI may reset the binding before the button action
         store.confirmDelete(item, span: .thisEvent)
         #expect(source.stored.isEmpty)
+    }
+}
+
+struct MonthGridTests {
+    private func calendar(firstWeekday: Int) -> Calendar {
+        var c = utc
+        c.firstWeekday = firstWeekday
+        return c
+    }
+
+    @Test func wholeWeeksFromTheFirstWeekday() {
+        // September 2026 starts on a Tuesday and ends on a Wednesday.
+        let monday = MonthGrid.days(of: at(12, day: 15), calendar: calendar(firstWeekday: 2))
+        #expect(monday.count == 35)
+        #expect(utc.component(.day, from: monday.first!) == 31)   // Mon 31 Aug
+        #expect(utc.component(.day, from: monday.last!) == 4)     // Sun 4 Oct
+        let sunday = MonthGrid.days(of: at(12, day: 15), calendar: calendar(firstWeekday: 1))
+        #expect(utc.component(.day, from: sunday.first!) == 30)   // Sun 30 Aug
+        #expect(sunday.count % 7 == 0)
+    }
+
+    @Test func weekdayInitialsFollowTheFirstWeekday() {
+        var c = calendar(firstWeekday: 2)
+        c.locale = Locale(identifier: "en_US")
+        #expect(MonthGrid.weekdaySymbols(calendar: c) == ["M", "T", "W", "T", "F", "S", "S"])
     }
 }
