@@ -33,7 +33,7 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
         isMovableByWindowBackground = false // dragging on the timeline edits events
         backgroundColor = .clear
         isOpaque = false
-        minSize = NSSize(width: 220, height: 300)
+        minSize = Self.minimumSize
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             standardWindowButton(button)?.isHidden = true
         }
@@ -45,6 +45,7 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
             notepad: notepad,
             noteEditor: noteEditor,
             onTogglePin: { [weak self] in self?.togglePinned() },
+            onToggleCompact: { [weak self] in self?.toggleCompact() },
             onSettings: onSettings
         ))
         hosting.sizingOptions = [] // let the user resize freely
@@ -57,6 +58,7 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
 
         if !setFrameUsingName(Self.autosaveName) { placeTopRight() }
         setFrameAutosaveName(Self.autosaveName)
+        if settings.isCompact { applyCompactSize(animate: false) }
         installKeyMonitor()
     }
 
@@ -89,6 +91,38 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
         applyPinned()
     }
 
+    private static let minimumSize = NSSize(width: 220, height: 300)
+    /// Header plus the up-next line.
+    private static let compactHeight: CGFloat = 32 + 40
+
+    /// Collapses to the header and what's on next (remembering the height), or expands back.
+    func toggleCompact() {
+        if settings.isCompact {
+            settings.setCompact(false)
+            minSize = Self.minimumSize
+            maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
+            resize(toHeight: max(CGFloat(settings.expandedHeight ?? 520), Self.minimumSize.height), animate: true)
+        } else {
+            settings.setCompact(true, expandedHeight: Double(frame.height))
+            store.goToToday()
+            applyCompactSize(animate: true)
+        }
+    }
+
+    private func applyCompactSize(animate: Bool) {
+        minSize = NSSize(width: Self.minimumSize.width, height: Self.compactHeight)
+        maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: Self.compactHeight)
+        resize(toHeight: Self.compactHeight, animate: animate)
+    }
+
+    /// Keeps the top edge where it is, as a window does when its content changes height.
+    private func resize(toHeight height: CGFloat, animate: Bool) {
+        var rect = frame
+        rect.origin.y += rect.height - height
+        rect.size.height = height
+        setFrame(rect, display: true, animate: animate)
+    }
+
     private func applyPinned() {
         isFloatingPanel = settings.isPinned
         level = settings.isPinned ? .floating : .normal
@@ -103,8 +137,8 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
     /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning,
     /// ⌘O opens Calendar, ←/→ change day, ↑/↓ move the selection (or scroll), Page Up/Down
     /// scroll, Return edits the selection, Esc deselects —
-    /// unless a text field is editing. ⌘, opens Settings and ⌘= / ⌘- / ⌘0 zoom, even from
-    /// the note.
+    /// unless a text field is editing. ⌘, opens Settings, ⌘M toggles compact mode and
+    /// ⌘= / ⌘- / ⌘0 zoom, even from the note.
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let keyCode = event.keyCode
@@ -125,6 +159,9 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
         switch (flags, key) {
         case ([.command], ","):
             onSettings()
+            return true
+        case ([.command], "m"):
+            toggleCompact()
             return true
         case ([.command], "="), ([.command], "+"), ([.command, .shift], "+"), ([.command, .shift], "="):
             settings.zoomIn()

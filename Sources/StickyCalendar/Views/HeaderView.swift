@@ -7,6 +7,7 @@ struct HeaderView: View {
     let isNoteVisible: Bool
     let onToggleNote: () -> Void
     let onTogglePin: () -> Void
+    let onToggleCompact: () -> Void
     let onSettings: () -> Void
 
     var body: some View {
@@ -30,11 +31,13 @@ struct HeaderView: View {
                     .buttonStyle(.borderless)
                     .help("Jump to now")
             }
-            Button(action: onToggleNote) {
-                Image(systemName: isNoteVisible ? "note.text" : "note")
+            if !settings.isCompact {
+                Button(action: onToggleNote) {
+                    Image(systemName: isNoteVisible ? "note.text" : "note")
+                }
+                .buttonStyle(.borderless)
+                .help(isNoteVisible ? "Hide note" : "Show note")
             }
-            .buttonStyle(.borderless)
-            .help(isNoteVisible ? "Hide note" : "Show note")
             Button { CalendarJump.perform(day: store.day, settings: settings, store: store) } label: {
                 Image(systemName: "calendar")
             }
@@ -45,12 +48,19 @@ struct HeaderView: View {
             }
             .buttonStyle(.borderless)
             .help(settings.isPinned ? "Unpin: behave like a normal window (⌃S)" : "Pin: keep on top of other windows (⌃S)")
+            Button(action: onToggleCompact) {
+                Image(systemName: settings.isCompact ? "rectangle.expand.vertical" : "rectangle.compress.vertical")
+            }
+            .buttonStyle(.borderless)
+            .help(settings.isCompact ? "Expand (⌘M, or double-click here)" : "Compact: just what's next (⌘M, or double-click here)")
             Button(action: onSettings) { Image(systemName: "gearshape") }
                 .buttonStyle(.borderless)
                 .help("Settings (⌘,)")
         }
         .padding(.horizontal, 12)
         .frame(height: 32)
+        // Double-clicking the bar collapses or expands, like a title bar.
+        .background(Color.clear.contentShape(Rectangle()).onTapGesture(count: 2, perform: onToggleCompact))
         // SwiftUI extends the timeline's scroll view up under the header (it insets the
         // content by the header height), so the header needs its own bar material.
         .background(.bar)

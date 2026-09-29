@@ -11,6 +11,9 @@ public final class AppSettings {
         static let opacity = "opacity"
         static let calendarJumpMode = "calendarJumpMode"
         static let zoom = "zoom"
+        static let isCompact = "isCompact"
+        static let expandedHeight = "expandedHeight"
+        static let globalHotKey = "globalHotKey"
     }
 
     public static let opacityRange: ClosedRange<Double> = 0.5...1.0
@@ -27,6 +30,12 @@ public final class AppSettings {
     public private(set) var calendarJumpMode: CalendarJumpMode?
     /// Scales the timeline and the note (text and spacing together); the header stays put.
     public private(set) var zoom: Double
+    /// Collapsed to the header and the current or next event.
+    public private(set) var isCompact: Bool
+    /// The window's height before it was made compact, to restore.
+    public private(set) var expandedHeight: Double?
+    /// The system-wide shortcut that shows or hides the sticky.
+    public private(set) var globalHotKey: GlobalHotKeyChoice
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -35,6 +44,24 @@ public final class AppSettings {
         opacity = Self.clampOpacity(defaults.object(forKey: Key.opacity) as? Double ?? 0.92)
         calendarJumpMode = defaults.string(forKey: Key.calendarJumpMode).flatMap(CalendarJumpMode.init(rawValue:))
         zoom = Self.nearestZoomStep(defaults.object(forKey: Key.zoom) as? Double ?? 1)
+        isCompact = defaults.bool(forKey: Key.isCompact)
+        expandedHeight = defaults.object(forKey: Key.expandedHeight) as? Double
+        globalHotKey = defaults.string(forKey: Key.globalHotKey).flatMap(GlobalHotKeyChoice.init(rawValue:)) ?? .controlOptionS
+    }
+
+    /// `expandedHeight` is the window height to restore when leaving compact mode.
+    public func setCompact(_ compact: Bool, expandedHeight height: Double? = nil) {
+        isCompact = compact
+        defaults.set(compact, forKey: Key.isCompact)
+        if let height {
+            expandedHeight = height
+            defaults.set(height, forKey: Key.expandedHeight)
+        }
+    }
+
+    public func setGlobalHotKey(_ choice: GlobalHotKeyChoice) {
+        globalHotKey = choice
+        defaults.set(choice.rawValue, forKey: Key.globalHotKey)
     }
 
     /// Snaps to the nearest step.
@@ -82,5 +109,23 @@ public final class AppSettings {
 
     private static func clampOpacity(_ value: Double) -> Double {
         min(max(value, opacityRange.lowerBound), opacityRange.upperBound)
+    }
+}
+
+/// The system-wide show/hide shortcut, from a few presets that other apps rarely use.
+public enum GlobalHotKeyChoice: String, Sendable, CaseIterable {
+    case off
+    case controlOptionS
+    case controlOptionCommandS
+    case controlOptionSpace
+
+    /// As shown in menus.
+    public var symbol: String {
+        switch self {
+        case .off: "Off"
+        case .controlOptionS: "⌃⌥S"
+        case .controlOptionCommandS: "⌃⌥⌘S"
+        case .controlOptionSpace: "⌃⌥Space"
+        }
     }
 }

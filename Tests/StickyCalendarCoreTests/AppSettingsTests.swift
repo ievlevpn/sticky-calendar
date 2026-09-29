@@ -82,4 +82,22 @@ struct AppSettingsTests {
         defaults.set(7.0, forKey: "zoom")
         #expect(AppSettings(defaults: defaults).zoom == 2)
     }
+
+    @Test func compactModeAndItsRestoreHeightPersist() {
+        let s = AppSettings(defaults: defaults)
+        #expect(!s.isCompact && s.expandedHeight == nil)
+        s.setCompact(true, expandedHeight: 640)
+        let reloaded = AppSettings(defaults: defaults)
+        #expect(reloaded.isCompact && reloaded.expandedHeight == 640)
+        reloaded.setCompact(false)
+        #expect(!AppSettings(defaults: defaults).isCompact)
+        #expect(AppSettings(defaults: defaults).expandedHeight == 640)
+    }
+
+    @Test func globalHotKeyDefaultsToControlOptionSAndPersists() {
+        let s = AppSettings(defaults: defaults)
+        #expect(s.globalHotKey == .controlOptionS)
+        s.setGlobalHotKey(.off)
+        #expect(AppSettings(defaults: defaults).globalHotKey == .off)
+    }
 }

@@ -1,14 +1,15 @@
 import StickyCalendarCore
 import SwiftUI
 
-/// Root of the sticky window: header, all-day strip, timeline, optional note, plus dialogs
-/// and error banner.
+/// Root of the sticky window: header, all-day strip, timeline, optional note (or, compact,
+/// just what's on next), plus dialogs and error banner.
 struct StickyContentView: View {
     let store: CalendarStore
     let settings: AppSettings
     let notepad: Notepad
     let noteEditor: NoteEditorController
     let onTogglePin: () -> Void
+    let onToggleCompact: () -> Void
     let onSettings: () -> Void
 
     @State private var contentHeight: CGFloat = 0
@@ -20,25 +21,19 @@ struct StickyContentView: View {
             HeaderView(
                 store: store, settings: settings,
                 isNoteVisible: notepad.isVisible, onToggleNote: toggleNote,
-                onTogglePin: onTogglePin, onSettings: onSettings
+                onTogglePin: onTogglePin, onToggleCompact: onToggleCompact, onSettings: onSettings
             )
-            switch store.access {
-            case .granted:
-                AllDayStrip(store: store, zoom: settings.zoom)
-                DayTimelineView(store: store, zoom: settings.zoom)
-            case .notDetermined:
-                Spacer()
-                Text("Waiting for Calendar access…").foregroundStyle(.secondary)
-                Spacer()
-            case .denied:
-                AccessDeniedView()
-            }
-            if notepad.isVisible {
-                NotePane(notepad: notepad, editor: noteEditor, zoom: settings.zoom, maxHeight: contentHeight - reservedHeight)
+            if settings.isCompact, store.access == .granted {
+                UpNextRow(store: store, onExpand: onToggleCompact)
+            } else {
+                fullContent
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        // Per-day notes follow the day being viewed.
+        .onAppear { notepad.setDay(store.day) }
+        .onChange(of: store.day) { _, day in notepad.setDay(day) }
         .background(VisualEffectBackground().opacity(settings.opacity))
         .overlay(alignment: .bottom) { ErrorBanner(store: store) }
         .confirmationDialog(
@@ -66,6 +61,25 @@ struct StickyContentView: View {
             Button("Change This Event Only") { store.confirmEdit(edit, span: .thisEvent) }
             Button("Change All Future Events") { store.confirmEdit(edit, span: .futureEvents) }
             Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    /// Everything below the header when not compact.
+    @ViewBuilder
+    private var fullContent: some View {
+        switch store.access {
+        case .granted:
+            AllDayStrip(store: store, zoom: settings.zoom)
+            DayTimelineView(store: store, zoom: settings.zoom)
+        case .notDetermined:
+            Spacer()
+            Text("Waiting for Calendar access…").foregroundStyle(.secondary)
+            Spacer()
+        case .denied:
+            AccessDeniedView()
+        }
+        if notepad.isVisible {
+            NotePane(notepad: notepad, editor: noteEditor, zoom: settings.zoom, maxHeight: contentHeight - reservedHeight)
         }
     }
 

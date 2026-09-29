@@ -215,6 +215,14 @@ struct DayTimelineView: View {
         .frame(width: max(columnWidth - 2, 4), height: CGFloat(frame.height))
         .overlay(alignment: .top) { resizeHandle(item, .resizeStart, geo: geo) }
         .overlay(alignment: .bottom) { resizeHandle(item, .resizeEnd, geo: geo) }
+        .overlay(alignment: .topTrailing) {
+            // Above the resize handle, so a click on it joins rather than resizes.
+            if columnWidth > 40 * zoom, let url = MeetingLink.find(in: shown) {
+                JoinMeetingButton(url: url, color: color, size: 8 * zoom)
+                    .padding(.top, 2 * zoom)
+                    .padding(.trailing, 4 * zoom)
+            }
+        }
         .gesture(dragGesture(item, .move, geo: geo))
         .onTapGesture(count: 2) {
             focusTitleOnOpen = false

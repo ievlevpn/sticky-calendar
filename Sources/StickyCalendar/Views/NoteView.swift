@@ -23,9 +23,10 @@ struct NotePane: View {
 
     private func bar(height: CGFloat) -> some View {
         HStack(spacing: 8) {
-            Text("Note")
+            Text(notepad.isPerDay ? "Note · \(notepad.day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))" : "Note")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
             Spacer()
             Button("Clear") { editor.clear() }
                 .buttonStyle(.borderless)

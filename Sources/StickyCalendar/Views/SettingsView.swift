@@ -5,6 +5,8 @@ import SwiftUI
 struct SettingsView: View {
     let store: CalendarStore
     let settings: AppSettings
+    let notepad: Notepad
+    let hotKey: GlobalHotKey
     let updateChecker: UpdateChecker
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -54,6 +56,36 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Note") {
+                Toggle("A separate note for each day", isOn: Binding(get: { notepad.isPerDay }, set: notepad.setPerDay))
+                Text(notepad.isPerDay
+                     ? "The note follows the day you're viewing, like a journal."
+                     : "One note, whichever day you're viewing.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Shortcuts") {
+                Picker("Show or hide the sticky", selection: Binding(
+                    get: { settings.globalHotKey },
+                    set: { choice in
+                        settings.setGlobalHotKey(choice)
+                        hotKey.apply(choice)
+                    }
+                )) {
+                    ForEach(GlobalHotKeyChoice.allCases, id: \.self) { Text($0.symbol).tag($0) }
+                }
+                if hotKey.failed {
+                    Text("Another app already uses \(settings.globalHotKey.symbol). Choose another shortcut.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                } else {
+                    Text("Works from any app. In the sticky: ⌘M compact, ⌘= / ⌘- zoom, ⌘, settings.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Updates") {
                 LabeledContent("Version", value: "\(AppVersion.short) (build \(AppVersion.build))")
                 Text(updateChecker.summary).foregroundStyle(.secondary)
@@ -76,7 +108,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 380, height: 600)
+        .frame(width: 400, height: 700)
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {

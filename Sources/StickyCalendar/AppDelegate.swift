@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var store = CalendarStore(source: source, settings: settings)
     private let updateChecker = UpdateChecker(currentVersion: AppVersion.short)
     private var updateTimer: Timer?
+    private lazy var hotKey = GlobalHotKey { [weak self] in self?.toggleFromHotKey() }
     private var panel: StickyPanel?
     private var statusItem: StatusItemController?
     private var settingsWindow: NSWindow?
@@ -30,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             updateChecker: updateChecker
         )
         panel.orderFrontRegardless()
+        hotKey.apply(settings.globalHotKey)
 
         observeClock()
         Task { await store.requestAccessIfNeeded() }
@@ -45,6 +47,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// The global shortcut: brings the sticky forward and focuses it, or hides it if it
+    /// already has focus.
+    private func toggleFromHotKey() {
+        guard let panel else { return }
+        if panel.isVisible && panel.isKeyWindow {
+            panel.orderOut(nil)
+        } else {
+            panel.orderFrontRegardless()
+            panel.makeKey()
+        }
+    }
+
     private func togglePanel() {
         guard let panel else { return }
         if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
@@ -53,7 +67,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showSettings() {
         if settingsWindow == nil {
             let window = NSWindow(contentViewController: NSHostingController(
-                rootView: SettingsView(store: store, settings: settings, updateChecker: updateChecker)
+                rootView: SettingsView(
+                    store: store, settings: settings, notepad: notepad, hotKey: hotKey, updateChecker: updateChecker
+                )
             ))
             window.title = "Sticky Calendar Settings"
             window.styleMask = [.titled, .closable]
