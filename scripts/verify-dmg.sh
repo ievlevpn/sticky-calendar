@@ -22,7 +22,9 @@ ARCHS="$(lipo -archs "$APP/Contents/MacOS/StickyCalendar")"
 [[ "$ARCHS" == *arm64* && "$ARCHS" == *x86_64* ]] || fail "not universal: $ARCHS"
 codesign --verify --strict "$APP" || fail "app signature invalid"
 if [[ "${REQUIRE_SIGNING:-0}" == 1 ]]; then
-    codesign -dvv "$APP" 2>&1 | grep -q "Authority=$DEFAULT_SIGNING_IDENTITY" \
+    # Capture first: with pipefail, `codesign | grep -q` fails whenever grep exits early.
+    SIGNATURE="$(codesign -dvv "$APP" 2>&1)"
+    [[ "$SIGNATURE" == *"Authority=$DEFAULT_SIGNING_IDENTITY"* ]] \
         || fail "app not signed with $DEFAULT_SIGNING_IDENTITY"
 fi
 echo "OK: $DMG (version $VERSION, $ARCHS)"
