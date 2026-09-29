@@ -193,23 +193,31 @@ struct NoteEditor: NSViewRepresentable {
             let editing = textView.window?.firstResponder === textView
             layout.update(LivePreview(
                 text: text, spans: styled?.spans ?? [],
-                selection: editing ? textView.selectedRanges.map(\.rangeValue) : nil
+                selection: editing ? textView.selectedRanges.map(\.rangeValue) : nil,
+                canDraw: { MathRenderer.shared.formula($0, display: $1) != nil }
             ), in: textView)
         }
     }
 }
 
-/// Applies a `LivePreview` through TextKit 1: hidden characters get null glyphs, and each
-/// decorated marker becomes a fixed-width blank that `NoteTextView` draws into.
+/// Applies a `LivePreview` through TextKit 1: hidden characters get null glyphs (hidden
+/// line breaks, zero width, so a display-math block folds onto one line), each decorated
+/// marker becomes a blank that `NoteTextView` draws into, and lines holding math grow to
+/// fit it.
 @MainActor
 final class LivePreviewLayout: NSObject, @preconcurrency NSLayoutManagerDelegate {
     private(set) var preview = LivePreview(text: "", spans: [], selection: nil)
+    /// Blank space above and below display math.
+    static let displayMathPadding: CGFloat = 5
 
-    static func width(of decoration: LivePreview.Decoration) -> CGFloat {
+    /// How wide a decoration's blank is; display math takes the rest of its line.
+    private func width(of decoration: LivePreview.Decoration, from x: CGFloat, in line: NSRect) -> CGFloat {
         switch decoration {
         case .bullet: 12
         case .task: 17
         case .quote: 9
+        case .math(let tex, let display, _):
+            display ? max(line.maxX - x, 0) : (MathRenderer.shared.formula(tex, display: false)?.width ?? 0) + 2
         }
     }
 
@@ -232,9 +240,15 @@ final class LivePreviewLayout: NSObject, @preconcurrency NSLayoutManagerDelegate
         forGlyphRange glyphRange: NSRange
     ) -> Int {
         var changed = false
+        let text = (layoutManager.textStorage?.string ?? "") as NSString
         var props = (0..<glyphRange.length).map { i -> NSLayoutManager.GlyphProperty in
             let index = characterIndexes[i]
-            if preview.hidden.contains(index) { changed = true; return .null }
+            if preview.hidden.contains(index) {
+                changed = true
+                // A null line break still breaks the line; a control character can be told not to.
+                let isBreak = index < text.length && CharacterSet.newlines.contains(UnicodeScalar(text.character(at: index)) ?? " ")
+                return isBreak ? .controlCharacter : .null
+            }
             if preview.decorations[index] != nil { changed = true; return .controlCharacter }
             return properties[i]
         }
@@ -251,7 +265,9 @@ final class LivePreviewLayout: NSObject, @preconcurrency NSLayoutManagerDelegate
         shouldUse action: NSLayoutManager.ControlCharacterAction,
         forControlCharacterAt charIndex: Int
     ) -> NSLayoutManager.ControlCharacterAction {
-        preview.decorations[charIndex] != nil ? .whitespace : action
+        if preview.decorations[charIndex] != nil { return .whitespace }
+        if preview.hidden.contains(charIndex) { return .zeroAdvancement } // a hidden line break
+        return action
     }
 
     func layoutManager(
@@ -262,8 +278,36 @@ final class LivePreviewLayout: NSObject, @preconcurrency NSLayoutManagerDelegate
         glyphPosition: NSPoint,
         characterIndex charIndex: Int
     ) -> NSRect {
-        let width = preview.decorations[charIndex].map(Self.width(of:)) ?? 0
-        return NSRect(x: glyphPosition.x, y: 0, width: width, height: proposedRect.height)
+        let blank = preview.decorations[charIndex].map { width(of: $0, from: glyphPosition.x, in: proposedRect) } ?? 0
+        return NSRect(x: glyphPosition.x, y: 0, width: blank, height: proposedRect.height)
+    }
+
+    /// Makes a line holding math tall enough for it: room above the baseline for the
+    /// tallest formula's ascent and below it for the deepest descent.
+    func layoutManager(
+        _ layoutManager: NSLayoutManager,
+        shouldSetLineFragmentRect lineFragmentRect: UnsafeMutablePointer<NSRect>,
+        lineFragmentUsedRect: UnsafeMutablePointer<NSRect>,
+        baselineOffset: UnsafeMutablePointer<CGFloat>,
+        in textContainer: NSTextContainer,
+        forGlyphRange glyphRange: NSRange
+    ) -> Bool {
+        let characters = layoutManager.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+        var ascent: CGFloat = 0, descent: CGFloat = 0
+        for (index, decoration) in preview.decorations where NSLocationInRange(index, characters) {
+            guard case .math(let tex, let display, _) = decoration,
+                  let formula = MathRenderer.shared.formula(tex, display: display) else { continue }
+            let padding = display ? Self.displayMathPadding : 1
+            ascent = max(ascent, formula.ascent + padding)
+            descent = max(descent, formula.descent + padding)
+        }
+        guard ascent > 0 else { return false }
+        let baseline = max(baselineOffset.pointee, ascent)
+        let height = baseline + max(lineFragmentRect.pointee.height - baselineOffset.pointee, descent)
+        baselineOffset.pointee = baseline
+        lineFragmentRect.pointee.size.height = height
+        lineFragmentUsedRect.pointee.size.height = height
+        return true
     }
 }
 
@@ -330,8 +374,16 @@ final class NoteTextView: NSTextView {
         }
         for (index, decoration) in live?.preview.decorations ?? [:] {
             guard let rect = decorationRect(at: index), rect.intersects(dirtyRect) else { continue }
-            draw(decoration, in: rect)
+            draw(decoration, at: index, in: rect)
         }
+    }
+
+    /// The baseline of the line holding a character, in view coordinates.
+    private func baseline(at index: Int) -> CGFloat? {
+        guard let layoutManager else { return nil }
+        let glyph = layoutManager.glyphIndexForCharacter(at: index)
+        let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        return textContainerOrigin.y + line.minY + layoutManager.location(forGlyphAt: glyph).y
     }
 
     /// Where a decorated marker was laid out, in view coordinates.
@@ -345,9 +397,15 @@ final class NoteTextView: NSTextView {
         return rect
     }
 
-    private func draw(_ decoration: LivePreview.Decoration, in rect: NSRect) {
+    private func draw(_ decoration: LivePreview.Decoration, at index: Int, in rect: NSRect) {
         let midY = rect.midY
         switch decoration {
+        case .math(let tex, let display, _):
+            guard let formula = MathRenderer.shared.formula(tex, display: display),
+                  let context = NSGraphicsContext.current?.cgContext,
+                  let baseline = baseline(at: index) else { return }
+            let x = display ? max(rect.midX - formula.width / 2, rect.minX) : rect.minX + 1
+            formula.draw(in: context, baselineOrigin: CGPoint(x: x, y: baseline), color: .labelColor)
         case .bullet:
             NSColor.secondaryLabelColor.setFill()
             NSBezierPath(ovalIn: NSRect(x: rect.minX + 2, y: midY - 2, width: 4, height: 4)).fill()
@@ -401,6 +459,11 @@ enum NoteStyle {
                 storage.addAttribute(.backgroundColor, value: NSColor.quaternaryLabelColor, range: range)
             case .link(let url):
                 storage.addAttribute(.link, value: url, range: range)
+            case .math(let display):
+                // Source that won't typeset is flagged; its delimiters are dimmed like other syntax.
+                let tex = MarkdownStyler.tex(of: span, in: storage.string) ?? ""
+                let color = MathRenderer.shared.formula(tex, display: display) == nil ? NSColor.systemRed : .secondaryLabelColor
+                storage.addAttribute(.foregroundColor, value: color, range: range)
             }
         }
         storage.endEditing()

@@ -18,6 +18,7 @@ struct LivePreviewTests {
             case .bullet: return "•"
             case .task(let checked, _): return checked ? "☑" : "☐"
             case .quote: return "┃"
+            case .math(let tex, let display, _): return display ? "[[\(tex)]]" : "[\(tex)]"
             case nil: return ns.substring(with: NSRange(location: i, length: 1))
             }
         }.joined()
@@ -59,5 +60,23 @@ struct LivePreviewTests {
     @Test func plainTextIsUntouched() {
         let p = preview("2 * 3 = 6\nsnake_case", cursor: nil)
         #expect(p.hidden.isEmpty && p.decorations.isEmpty)
+    }
+
+    @Test func mathIsDrawnInPlaceOfItsSource() {
+        #expect(drawn("area $\\pi r^2$ ok", cursor: nil) == "area [\\pi r^2] ok")
+        #expect(drawn("a\n$$\nx^2\n$$\nb", cursor: nil) == "a\n[[x^2]]\nb")
+    }
+
+    @Test func editingAnyLineOfADisplayBlockShowsItsSource() {
+        let text = "a\n$$\nx^2\n$$\nb"
+        #expect(drawn(text, cursor: 5) == text)          // on the `x^2` line
+        #expect(drawn(text, cursor: 0) == "a\n[[x^2]]\nb")
+    }
+
+    @Test func mathThatCantBeDrawnShowsItsSource() {
+        let text = "$\\bogus$"
+        let p = LivePreview(text: text, spans: MarkdownStyler.spans(in: text), selection: nil) { _, _ in false }
+        #expect(p.decorations.isEmpty)
+        #expect(p.hidden == IndexSet([0, 7]))            // just the dollars, like other syntax
     }
 }

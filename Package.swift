@@ -9,7 +9,12 @@ let package = Package(
     ],
     targets: [
         .target(name: "StickyCalendarCore"),
-        .executableTarget(name: "StickyCalendar", dependencies: ["StickyCalendarCore"]),
+        // Renders the note's LaTeX math; vendored and patched, see Vendor/SwiftMath/README.md.
+        .target(name: "SwiftMath", path: "Vendor/SwiftMath/Sources/SwiftMath"),
+        .executableTarget(name: "StickyCalendar", dependencies: [
+            "StickyCalendarCore",
+            "SwiftMath",
+        ]),
         .testTarget(name: "StickyCalendarCoreTests", dependencies: ["StickyCalendarCore"]),
     ]
 )

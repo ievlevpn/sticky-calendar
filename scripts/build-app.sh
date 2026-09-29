@@ -61,6 +61,9 @@ fi
 
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns" # from scripts/make-icon.swift
+# The note's math font (found by SwiftMathFonts) and SwiftMath's licence.
+cp -R Vendor/SwiftMath/mathFonts.bundle "$APP/Contents/Resources/"
+cp Vendor/SwiftMath/LICENSE "$APP/Contents/Resources/SwiftMath-LICENSE.txt"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
 plutil -replace CFBundleVersion -string "$BUILD_NUMBER" "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null

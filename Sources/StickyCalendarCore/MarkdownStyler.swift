@@ -21,6 +21,8 @@ public struct MarkdownSpan: Equatable, Sendable {
         /// The text of a checked task (`- [x] …`).
         case done
         case link(URL)
+        /// LaTeX math with its delimiters: `$…$` inline, `$$…$$` display (may span lines).
+        case math(display: Bool)
     }
 
     public let range: NSRange
@@ -32,41 +34,55 @@ public struct MarkdownSpan: Equatable, Sendable {
     }
 }
 
-/// Finds the Markdown in a note: block syntax per line (headings, lists, tasks, quotes)
-/// and inline syntax (code, bold, italic, strikethrough, links). Nothing is matched
-/// inside inline code.
+/// Finds the Markdown in a note: block syntax per line (headings, lists, tasks, quotes),
+/// inline syntax (code, bold, italic, strikethrough, links) and LaTeX math. Nothing is
+/// matched inside inline code or math.
 public enum MarkdownStyler {
     public static func spans(in text: String) -> [MarkdownSpan] {
         let ns = text as NSString
+        let whole = NSRange(location: 0, length: ns.length)
         var spans: [MarkdownSpan] = []
-        ns.enumerateSubstrings(in: NSRange(location: 0, length: ns.length), options: [.byLines, .substringNotRequired]) { _, line, _, _ in
+
+        // Code, then math, claim their text first: nothing else is Markdown inside them.
+        var verbatim: [NSRange] = []
+        func isFree(_ range: NSRange) -> Bool {
+            !verbatim.contains { NSIntersectionRange($0, range).length > 0 }
+        }
+        for m in Pattern.code.matches(in: text, range: whole) {
+            verbatim.append(m.range)
+            spans += wrapped(m, style: .code)
+        }
+        var displayMath: [NSRange] = []
+        for (pattern, display) in [(Pattern.displayMath, true), (Pattern.inlineMath, false)] {
+            for m in pattern.matches(in: text, range: whole) where isFree(m.range) {
+                verbatim.append(m.range)
+                if display { displayMath.append(m.range) }
+                spans.append(MarkdownSpan(m.range, .math(display: display)))
+                spans += wrapped(m, style: nil)
+            }
+        }
+
+        ns.enumerateSubstrings(in: whole, options: [.byLines, .substringNotRequired]) { _, line, _, _ in
+            // A line of a display-math block is TeX, not a list item or heading.
+            guard !displayMath.contains(where: { NSIntersectionRange($0, line).length > 0 }) else { return }
             spans += blockSpans(ns, line: line)
         }
 
-        var code: [NSRange] = []
-        for m in Pattern.code.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
-            code.append(m.range)
-            spans += wrapped(m, style: .code)
-        }
-        func outsideCode(_ m: NSTextCheckingResult) -> Bool {
-            !code.contains { NSIntersectionRange($0, m.range).length > 0 }
-        }
-        let whole = NSRange(location: 0, length: ns.length)
         for pattern in [Pattern.boldStar, Pattern.boldUnderscore] {
-            for m in pattern.matches(in: text, range: whole) where outsideCode(m) {
+            for m in pattern.matches(in: text, range: whole) where isFree(m.range) {
                 spans += wrapped(m, style: .bold)
             }
         }
         // The italic patterns refuse a delimiter next to another one, so `**` never reads as italic.
         for pattern in [Pattern.italicStar, Pattern.italicUnderscore] {
-            for m in pattern.matches(in: text, range: whole) where outsideCode(m) {
+            for m in pattern.matches(in: text, range: whole) where isFree(m.range) {
                 spans += wrapped(m, style: .italic)
             }
         }
-        for m in Pattern.strike.matches(in: text, range: whole) where outsideCode(m) {
+        for m in Pattern.strike.matches(in: text, range: whole) where isFree(m.range) {
             spans += wrapped(m, style: .strikethrough)
         }
-        for m in Pattern.link.matches(in: text, range: whole) where outsideCode(m) {
+        for m in Pattern.link.matches(in: text, range: whole) where isFree(m.range) {
             let label = m.range(at: 1), target = m.range(at: 2)
             guard let url = URL(string: ns.substring(with: target)), url.scheme != nil else { continue }
             spans.append(MarkdownSpan(NSRange(location: m.range.location, length: 1), .marker))
@@ -95,14 +111,22 @@ public enum MarkdownStyler {
         return []
     }
 
-    /// Delimiters (outside capture group 1) as markers, the content with `style`.
-    private static func wrapped(_ m: NSTextCheckingResult, style: MarkdownSpan.Style) -> [MarkdownSpan] {
+    /// Delimiters (outside capture group 1) as markers, the content with `style` (if any).
+    private static func wrapped(_ m: NSTextCheckingResult, style: MarkdownSpan.Style?) -> [MarkdownSpan] {
         let inner = m.range(at: 1)
         return [
             MarkdownSpan(NSRange(location: m.range.location, length: inner.location - m.range.location), .marker),
-            MarkdownSpan(inner, style),
+            style.map { MarkdownSpan(inner, $0) },
             MarkdownSpan(NSRange(location: NSMaxRange(inner), length: NSMaxRange(m.range) - NSMaxRange(inner)), .marker),
-        ]
+        ].compactMap { $0 }
+    }
+
+    /// The TeX inside a math span, without its `$`/`$$` and surrounding blanks.
+    public static func tex(of span: MarkdownSpan, in text: String) -> String? {
+        guard case .math(let display) = span.style else { return nil }
+        let delimiter = display ? 2 : 1
+        let inner = NSRange(location: span.range.location + delimiter, length: span.range.length - 2 * delimiter)
+        return (text as NSString).substring(with: inner).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private enum Pattern {
@@ -117,6 +141,11 @@ public enum MarkdownStyler {
         static let italicUnderscore = regex(#"(?<![_\w])_(?=[^\s_])([^\n_]+?)(?<=[^\s_])_(?![_\w])"#)
         static let strike = regex(#"~~(?=\S)([^\n]+?)(?<=\S)~~"#)
         static let link = regex(#"\[([^\]\n]+)\]\(([^)\s]+)\)"#)
+        /// `$$…$$`, possibly over several lines.
+        static let displayMath = regex(#"(?<!\\)\$\$(?=[\s\S]*?\S[\s\S]*?\$\$)([\s\S]+?)\$\$"#)
+        /// `$…$` on one line, Pandoc-style so prices don't match: no blank just inside the
+        /// dollars, no digit right after the closing one.
+        static let inlineMath = regex(#"(?<![\\$])\$(?=[^\s$])([^\n$]+?)(?<=[^\s\\])\$(?![\d$])"#)
 
         private static func regex(_ pattern: String) -> NSRegularExpression {
             try! NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines])

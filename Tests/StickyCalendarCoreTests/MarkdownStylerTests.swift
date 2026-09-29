@@ -26,6 +26,7 @@ struct MarkdownStylerTests {
         case .quote: "quote"
         case .done: "done"
         case .link(let url): "link(\(url.absoluteString))"
+        case .math(let display): display ? "display-math" : "math"
         }
     }
 
@@ -74,5 +75,31 @@ struct MarkdownStylerTests {
 
     @Test func blockSyntaxAppliesPerLine() {
         #expect(styled("# A\nplain\n- b") == ["# =marker", "A=heading", "- =list"])
+    }
+
+    @Test func inlineMath() {
+        #expect(styled("so $e^{i\\pi}+1=0$ holds") == ["$=marker", "$e^{i\\pi}+1=0$=math", "$=marker"])
+    }
+
+    @Test func displayMathMaySpanLines() {
+        let text = "$$\n\\int_0^1 x\\,dx\n$$"
+        #expect(styled(text) == ["$$=marker", "$$\n\\int_0^1 x\\,dx\n$$=display-math", "$$=marker"])
+        let span = MarkdownStyler.spans(in: text).first { $0.style == .math(display: true) }!
+        #expect(MarkdownStyler.tex(of: span, in: text) == "\\int_0^1 x\\,dx")
+    }
+
+    @Test func pricesAndBlankDollarsAreNotMath() {
+        #expect(styled("costs $5 and $10").isEmpty)
+        #expect(styled("$ x$ and $x $").isEmpty)
+        #expect(styled("escaped \\$x$").isEmpty)
+    }
+
+    @Test func nothingElseIsMarkdownInsideMath() {
+        #expect(styled("$a*b*c$") == ["$=marker", "$a*b*c$=math", "$=marker"])
+        #expect(styled("$$\n- x\n$$").filter { $0.hasSuffix("=list") }.isEmpty)
+    }
+
+    @Test func mathInsideCodeStaysCode() {
+        #expect(styled("`$x$`") == ["`=marker", "$x$=code", "`=marker"])
     }
 }
