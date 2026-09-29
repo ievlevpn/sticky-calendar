@@ -2,7 +2,7 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
-## Unreleased
+## 0.8.0 — 2026-09-29
 
 ### Added
 - A **refresh button** and **⌘R** for the calendar and for reminders; Apple Calendar and Reminders also sync with their servers first.
