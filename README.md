@@ -6,7 +6,7 @@ A tiny menu-bar app that shows the day's calendar as a floating, always-on-top t
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/desktop-dark.png">
-  <img src="docs/images/desktop-light.png" alt="A Mac desktop with a code editor and a document open; Sticky Calendar floats in the top-right corner showing the day's events, the current time and a Markdown checklist">
+  <img src="docs/images/desktop-light.png" alt="A Mac desktop with a code editor and a document open; in the top-right corner float the reminders sticky (overdue and today's reminders) and the calendar sticky (the day's events, the current time and a Markdown checklist)">
 </picture>
 
 <picture>
@@ -37,6 +37,14 @@ Keyboard: ←/→ change day; ↑/↓ move between events (or scroll when none i
 Page Up/Down scroll; Return edits the selected event; Esc deselects.
 
 <br clear="right">
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/reminders-dark.png">
+    <img src="docs/images/reminders-light.png" width="260" alt="The reminders sticky in Today view: an overdue reminder, today's reminders with their times, and a field to add one">
+  </picture>
+  <br><sub>Reminders in their own sticky (⌃⌥R) — or as a tab, in Settings → Reminders.</sub>
+</p>
 
 <p align="center">
   <picture>
