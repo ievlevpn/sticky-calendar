@@ -11,7 +11,7 @@ A tiny menu-bar app that shows the day's calendar as a floating, always-on-top t
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/sticky-dark.png">
-  <img src="docs/images/sticky-light.png" align="right" width="240" alt="Close-up of the sticky: timeline with events, the red now-line, and a note with checkboxes">
+  <img src="docs/images/sticky-light.png" align="right" width="240" alt="Close-up of the sticky: timeline with events, a join button on a video call, the red now-line, and the day's note with checkboxes and math">
 </picture>
 
 Scroll through the day (48 pt per hour — a taller window shows more hours); the red
@@ -33,6 +33,14 @@ Keyboard: ←/→ change day; ↑/↓ move between events (or scroll when none i
 Page Up/Down scroll; Return edits the selected event; Esc deselects.
 
 <br clear="right">
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/compact-dark.png">
+    <img src="docs/images/compact-light.png" width="300" alt="Compact mode: just the header and the event on now, with a button to join its video call">
+  </picture>
+  <br><sub>Compact mode (⌘M): just what's on now or next.</sub>
+</p>
 
 ## Install
 
