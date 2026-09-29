@@ -219,6 +219,7 @@ final class LivePreviewLayout: NSObject, @preconcurrency NSLayoutManagerDelegate
         let all = NSRange(location: 0, length: (textView.string as NSString).length)
         layoutManager.invalidateGlyphs(forCharacterRange: all, changeInLength: 0, actualCharacterRange: nil)
         layoutManager.invalidateLayout(forCharacterRange: all, actualCharacterRange: nil)
+        layoutManager.invalidateDisplay(forCharacterRange: all)
         textView.needsDisplay = true
     }
 
@@ -276,6 +277,10 @@ final class NoteTextView: NSTextView {
     private let noteUndoManager = UndoManager()
 
     override var undoManager: UndoManager? { noteUndoManager }
+
+    /// Out of the key-view loop, so the window doesn't hand it focus on its own at launch
+    /// (the timeline's keys would then type into the note). Clicking still focuses it.
+    override var canBecomeKeyView: Bool { false }
 
     @objc func undo(_ sender: Any?) { noteUndoManager.undo() }
     @objc func redo(_ sender: Any?) { noteUndoManager.redo() }

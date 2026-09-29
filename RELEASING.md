@@ -1,8 +1,8 @@
 # Releasing Sticky Calendar
 
-Releases are built by GitHub Actions when a version tag is pushed. The repository is
-private for now: releases exist, but nobody else can download them, the app's update
-check stays silent, and the Homebrew cask is not published. See "Going public" below.
+Releases are built by GitHub Actions when a version tag is pushed. The app's daily update
+check reads the latest GitHub release; Homebrew installs from the `ievlevpn/homebrew-tap`
+cask (see "Homebrew" below).
 
 ## Cutting a release
 
@@ -44,21 +44,27 @@ see "First launch" below.)
    anything else, even a certificate with the same name. Only change it on purpose (the
    script prints the new value when it creates a certificate).
 
-## Going public
+## Homebrew
 
-1. Make `ievlevpn/sticky-calendar` public. From then on the app's daily update check
-   finds new releases.
-2. Create a public repo `ievlevpn/homebrew-tap` with an empty `Casks/` directory.
-3. Create a fine-grained personal access token with **Contents: read and write** on
+The cask lives in the public repo `ievlevpn/homebrew-tap` (`Casks/sticky-calendar.rb`).
+The release workflow updates it when the `TAP_TOKEN` secret exists:
+
+1. Create a fine-grained personal access token with **Contents: read and write** on
    `ievlevpn/homebrew-tap` only, and save it as the `TAP_TOKEN` secret of
    `ievlevpn/sticky-calendar`.
-4. Publish the cask for the current release (later releases do it automatically):
 
-       gh release download vX.Y.Z --pattern '*.dmg'
-       ./scripts/update-cask.sh X.Y.Z "$(shasum -a 256 StickyCalendar-X.Y.Z.dmg | cut -d' ' -f1)" \
-           ../homebrew-tap/Casks/sticky-calendar.rb
+Without the secret, publish the cask by hand after each release:
 
-   then commit and push the tap.
+    gh release download vX.Y.Z --pattern '*.dmg'
+    ./scripts/update-cask.sh X.Y.Z "$(shasum -a 256 StickyCalendar-X.Y.Z.dmg | cut -d' ' -f1)" \
+        ../homebrew-tap/Casks/sticky-calendar.rb
+
+then commit and push the tap.
+
+## App icon
+
+`Resources/AppIcon.icns` is drawn by `swift scripts/make-icon.swift`; edit the script and
+rerun it to change the icon. README images live in `docs/images/`.
 
 ## First launch (no Apple notarization)
 

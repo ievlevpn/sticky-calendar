@@ -1,6 +1,16 @@
+<p align="center"><img src="docs/images/icon.png" width="128" alt="Sticky Calendar icon"></p>
+
 # Sticky Calendar
 
 A tiny menu-bar app that shows the day's calendar as a floating, always-on-top timeline.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshot-dark.png">
+    <img src="docs/images/screenshot-light.png" width="300" alt="Sticky Calendar: a day's timeline with events, the red now-line, and a Markdown note underneath">
+  </picture>
+</p>
+
 Scroll through the day (48 pt per hour — a taller window shows more hours); the red
 ruler marks the current time and the clock button jumps back to it.
 Drag to create, move and resize events; double-click to edit; ⌫ to delete; ⌘Z to undo;
