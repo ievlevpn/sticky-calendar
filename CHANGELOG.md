@@ -2,6 +2,14 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## Unreleased
+
+### Added
+- **Reminders from Todoist, TickTick or an Obsidian vault**, as well as Apple Reminders. The first time you open reminders, Sticky Calendar asks where they should come from; change it any time in Settings → Reminders.
+  - **Todoist** and **TickTick** use a personal API token (kept in your keychain): projects become lists, and ticking, adding, renaming and deleting go straight to your account.
+  - **Obsidian**: every `- [ ]` task in the vault's notes, with 📅 due dates from the Tasks plugin; each note is a list. Ticking writes `[x]` and `✅ date` like the Tasks plugin, and new reminders go to an inbox note you choose. Edits made in Obsidian show up straight away.
+- **Open in …** (right-click a reminder) opens it in Todoist, TickTick, Obsidian or Reminders.
+
 ## 0.6.0 — 2026-09-29
 
 ### Added
