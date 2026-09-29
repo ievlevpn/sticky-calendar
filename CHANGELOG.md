@@ -2,7 +2,7 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
-## Unreleased
+## 0.7.0 — 2026-09-29
 
 ### Added
 - **Reminders from Todoist, TickTick or an Obsidian vault**, as well as Apple Reminders. The first time you open reminders, Sticky Calendar asks where they should come from; change it any time in Settings → Reminders.
