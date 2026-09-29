@@ -229,6 +229,14 @@ struct RemindersView: View {
             .font(.system(size: 12 * zoom))
             .lineLimit(2)
             .frame(maxWidth: .infinity, alignment: .leading)
+            // A link in the notes (or title) opens without opening the editor.
+            if let link = MarkdownStyler.firstLink(in: [item.title, item.notes ?? ""].joined(separator: "\n")) {
+                Button { NSWorkspace.shared.open(link) } label: {
+                    Image(systemName: "link").font(.system(size: 10 * zoom, weight: .semibold))
+                }
+                .buttonStyle(.borderless)
+                .help("Open \(link.host ?? link.absoluteString)")
+            }
             if let due = dueLabel(item, in: section) {
                 Text(due.text)
                     .font(.system(size: 10.5 * zoom).monospacedDigit())

@@ -79,22 +79,13 @@ struct ReminderEditor: View {
                 .fixedSize()
             }
             Text("Notes").font(.caption).foregroundStyle(.secondary)
-            if canEditNotes {
-                TextEditor(text: $notes)
-                    .font(.system(size: 12))
-                    .scrollContentBackground(.hidden)
-                    .padding(4)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
-                    .frame(height: 80)
-            } else {
-                ScrollView {
-                    Text(notes.isEmpty ? "No notes." : notes)
-                        .font(.system(size: 12))
-                        .foregroundStyle(notes.isEmpty ? .secondary : .primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                }
-                .frame(maxHeight: 80)
+            // Markdown, with links you can click (in read-only notes too).
+            MarkdownField(text: $notes, isEditable: canEditNotes,
+                          placeholder: canEditNotes ? "Links, lists, **bold**…" : "No notes.")
+                .padding(4)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
+                .frame(height: 96)
+            if !canEditNotes {
                 Text("Notes are the indented lines under the task; edit them in Obsidian.")
                     .font(.caption2).foregroundStyle(.tertiary)
             }

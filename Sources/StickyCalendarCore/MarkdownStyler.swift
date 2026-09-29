@@ -21,6 +21,8 @@ public struct MarkdownSpan: Equatable, Sendable {
         /// The text of a checked task (`- [x] …`).
         case done
         case link(URL)
+        /// An Obsidian-style `#tag`.
+        case tag
         /// LaTeX math with its delimiters: `$…$` inline, `$$…$$` display (may span lines).
         case math(display: Bool)
     }
@@ -85,9 +87,24 @@ public enum MarkdownStyler {
         for m in Pattern.link.matches(in: text, range: whole) where isFree(m.range) {
             let label = m.range(at: 1), target = m.range(at: 2)
             guard let url = URL(string: ns.substring(with: target)), url.scheme != nil else { continue }
+            verbatim.append(m.range) // its address isn't a bare link or a tag
             spans.append(MarkdownSpan(NSRange(location: m.range.location, length: 1), .marker))
             spans.append(MarkdownSpan(label, .link(url)))
             spans.append(MarkdownSpan(NSRange(location: NSMaxRange(label), length: NSMaxRange(m.range) - NSMaxRange(label)), .marker))
+        }
+        // Bare addresses are links too (without trailing punctuation, which usually ends the sentence).
+        for m in Pattern.bareLink.matches(in: text, range: whole) where isFree(m.range) {
+            var range = m.range
+            while range.length > 0, let last = ns.substring(with: NSRange(location: NSMaxRange(range) - 1, length: 1)).first,
+                  ".,;:!?)]}'\"".contains(last) {
+                range.length -= 1
+            }
+            guard let url = URL(string: ns.substring(with: range)), url.host != nil else { continue }
+            verbatim.append(range)
+            spans.append(MarkdownSpan(range, .link(url)))
+        }
+        for m in Pattern.tag.matches(in: text, range: whole) where isFree(m.range) {
+            spans.append(MarkdownSpan(m.range, .tag))
         }
         return spans
     }
@@ -121,6 +138,14 @@ public enum MarkdownStyler {
         ].compactMap { $0 }
     }
 
+    /// The first link in the text (a Markdown link's target, or a bare address).
+    public static func firstLink(in text: String) -> URL? {
+        spans(in: text).lazy.compactMap { span -> (Int, URL)? in
+            if case .link(let url) = span.style { return (span.range.location, url) }
+            return nil
+        }.min { $0.0 < $1.0 }?.1
+    }
+
     /// The TeX inside a math span, without its `$`/`$$` and surrounding blanks.
     public static func tex(of span: MarkdownSpan, in text: String) -> String? {
         guard case .math(let display) = span.style else { return nil }
@@ -141,6 +166,9 @@ public enum MarkdownStyler {
         static let italicUnderscore = regex(#"(?<![_\w])_(?=[^\s_])([^\n_]+?)(?<=[^\s_])_(?![_\w])"#)
         static let strike = regex(#"~~(?=\S)([^\n]+?)(?<=\S)~~"#)
         static let link = regex(#"\[([^\]\n]+)\]\(([^)\s]+)\)"#)
+        static let bareLink = regex(#"\bhttps?://[^\s<>]+"#)
+        /// #tag, #nested/tag, #to-read — not a heading (which has a space) or a colour like #fff inside words.
+        static let tag = regex(#"(?<![\w#&/])#[\p{L}_][\p{L}\p{N}_/-]*"#)
         /// `$$…$$`, possibly over several lines.
         static let displayMath = regex(#"(?<!\\)\$\$(?=[\s\S]*?\S[\s\S]*?\$\$)([\s\S]+?)\$\$"#)
         /// `$…$` on one line, Pandoc-style so prices don't match: no blank just inside the

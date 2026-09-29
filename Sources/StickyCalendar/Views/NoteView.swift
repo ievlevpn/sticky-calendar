@@ -201,8 +201,6 @@ struct NoteEditor: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         let notepad: Notepad
         let layout = LivePreviewLayout()
-        /// Spans of the text last styled, reused while only the selection moves.
-        private var styled: (text: String, spans: [MarkdownSpan])?
 
         init(notepad: Notepad) { self.notepad = notepad }
 
@@ -217,24 +215,7 @@ struct NoteEditor: NSViewRepresentable {
             refresh(textView)
         }
 
-        /// Restyles after an edit and re-hides syntax for the lines now being edited.
-        /// `force` redoes both after a zoom change, when neither the text nor the syntax moved.
-        func refresh(_ textView: NSTextView, force: Bool = false) {
-            // Restyling mid-composition would break input methods; the commit restyles.
-            guard !textView.hasMarkedText() else { return }
-            let text = textView.string
-            if force || styled?.text != text {
-                let spans = MarkdownStyler.spans(in: text)
-                styled = (text, spans)
-                NoteStyle.apply(spans, to: textView)
-            }
-            let editing = textView.window?.firstResponder === textView
-            layout.update(LivePreview(
-                text: text, spans: styled?.spans ?? [],
-                selection: editing ? textView.selectedRanges.map(\.rangeValue) : nil,
-                canDraw: { MathRenderer.shared.formula($0, display: $1) != nil }
-            ), in: textView, force: force)
-        }
+        func refresh(_ textView: NSTextView, force: Bool = false) { layout.refresh(textView, force: force) }
     }
 }
 
@@ -245,6 +226,27 @@ struct NoteEditor: NSViewRepresentable {
 @MainActor
 final class LivePreviewLayout: NSObject, @preconcurrency NSLayoutManagerDelegate {
     private(set) var preview = LivePreview(text: "", spans: [], selection: nil)
+    /// Spans of the text last styled, reused while only the selection moves.
+    private var styled: (text: String, spans: [MarkdownSpan])?
+
+    /// Restyles after an edit and re-hides syntax for the lines now being edited.
+    /// `force` redoes both after a zoom change, when neither the text nor the syntax moved.
+    func refresh(_ textView: NSTextView, force: Bool = false) {
+        // Restyling mid-composition would break input methods; the commit restyles.
+        guard !textView.hasMarkedText() else { return }
+        let text = textView.string
+        if force || styled?.text != text {
+            let spans = MarkdownStyler.spans(in: text)
+            styled = (text, spans)
+            NoteStyle.apply(spans, to: textView)
+        }
+        let editing = textView.window?.firstResponder === textView
+        update(LivePreview(
+            text: text, spans: styled?.spans ?? [],
+            selection: editing ? textView.selectedRanges.map(\.rangeValue) : nil,
+            canDraw: { MathRenderer.shared.formula($0, display: $1) != nil }
+        ), in: textView, force: force)
+    }
     /// Blank space above and below display math.
     static let displayMathPadding: CGFloat = 5
 
@@ -355,6 +357,7 @@ final class LivePreviewLayout: NSObject, @preconcurrency NSLayoutManagerDelegate
 /// clicking a checkbox ticks it.
 final class NoteTextView: NSTextView {
     weak var live: LivePreviewLayout?
+    var placeholder = "Jot something down…"
     var onFocusChange: (() -> Void)?
     var onToggleTask: ((_ mark: NSRange, _ checked: Bool) -> Void)?
     private let noteUndoManager = UndoManager()
@@ -406,7 +409,7 @@ final class NoteTextView: NSTextView {
         super.draw(dirtyRect)
         if string.isEmpty {
             let padding = textContainer?.lineFragmentPadding ?? 0
-            NSAttributedString(string: "Jot something down…", attributes: [
+            NSAttributedString(string: placeholder, attributes: [
                 .font: NoteStyle.font,
                 .foregroundColor: NSColor.placeholderTextColor,
             ]).draw(at: NSPoint(x: textContainerInset.width + padding, y: textContainerInset.height))
@@ -503,6 +506,8 @@ enum NoteStyle {
                 storage.addAttribute(.backgroundColor, value: NSColor.quaternaryLabelColor, range: range)
             case .link(let url):
                 storage.addAttribute(.link, value: url, range: range)
+            case .tag:
+                storage.addAttribute(.foregroundColor, value: NSColor.controlAccentColor, range: range)
             case .math(let display):
                 // Source that won't typeset is flagged; its delimiters are dimmed like other syntax.
                 let tex = MarkdownStyler.tex(of: span, in: storage.string) ?? ""

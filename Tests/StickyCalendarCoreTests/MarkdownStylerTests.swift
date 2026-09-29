@@ -27,6 +27,7 @@ struct MarkdownStylerTests {
         case .done: "done"
         case .link(let url): "link(\(url.absoluteString))"
         case .math(let display): display ? "display-math" : "math"
+        case .tag: "tag"
         }
     }
 
@@ -36,7 +37,7 @@ struct MarkdownStylerTests {
 
     @Test func headings() {
         #expect(styled("## Today") == ["## =marker", "Today=heading"])
-        #expect(styled("#hashtag").isEmpty)
+        #expect(styled("#hashtag") == ["#hashtag=tag"])   // a tag, not a heading
     }
 
     @Test func boldItalicStrike() {
@@ -101,5 +102,22 @@ struct MarkdownStylerTests {
 
     @Test func mathInsideCodeStaysCode() {
         #expect(styled("`$x$`") == ["`=marker", "$x$=code", "`=marker"])
+    }
+
+    @Test func bareAddressesAreLinksWithoutTrailingPunctuation() {
+        #expect(styled("https://chatgpt.com/c/6ab51101-516c") == ["https://chatgpt.com/c/6ab51101-516c=link(https://chatgpt.com/c/6ab51101-516c)"])
+        #expect(styled("see https://a.b/c. then") == ["https://a.b/c=link(https://a.b/c)"])
+        #expect(styled("(https://a.b/c)") == ["https://a.b/c=link(https://a.b/c)"])
+        #expect(styled("`https://a.b`").filter { $0.contains("link") }.isEmpty)       // not inside code
+        #expect(styled("[docs](https://a.b/c)").filter { $0.hasPrefix("https") }.isEmpty) // the address of a Markdown link isn't linked again
+        #expect(MarkdownStyler.firstLink(in: "read this\nhttps://x.y/1 and https://x.y/2") == URL(string: "https://x.y/1"))
+        #expect(MarkdownStyler.firstLink(in: "no links") == nil)
+    }
+
+    @Test func tags() {
+        #expect(styled("#to-read later") == ["#to-read=tag"])
+        #expect(styled("# Heading").contains("# =marker"))
+        #expect(styled("C# and x#y and #123 and https://a.b/#frag").filter { $0.hasSuffix("=tag") }.isEmpty)
+        #expect(styled("#work/q4") == ["#work/q4=tag"])
     }
 }
