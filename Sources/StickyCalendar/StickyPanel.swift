@@ -25,7 +25,7 @@ final class StickyPanel: FloatingPanel {
         self.reminderSettings = reminderSettings
         noteEditor = NoteEditorController(notepad: notepad)
         self.onSettings = onSettings
-        super.init(autosaveName: "StickyPanel", size: NSSize(width: 280, height: 520),
+        super.init(autosaveName: "StickyPanel", size: NSSize(width: Self.defaultWidth, height: 560),
                    minSize: Self.minimumSize, isPinned: { settings.isPinned })
         setContent(StickyContentView(
             store: store,
@@ -39,6 +39,7 @@ final class StickyPanel: FloatingPanel {
             onToggleCompact: { [weak self] in self?.toggleCompact() },
             onSettings: onSettings
         ))
+        widenOnceForTheFullHeader()
         if settings.isCompact { applyCompactSize(animate: false) }
         installKeyMonitor()
     }
@@ -65,6 +66,21 @@ final class StickyPanel: FloatingPanel {
     }
 
     private static let minimumSize = NSSize(width: 220, height: 300)
+    /// Wide enough for the full date and every header button (the header fits from 320).
+    private static let defaultWidth: CGFloat = 340
+
+    /// Windows saved by earlier versions (280 wide) cut the header short: widen them once,
+    /// keeping the right edge. A width chosen after that is kept.
+    private func widenOnceForTheFullHeader() {
+        let key = "didWidenForFullHeader"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        guard frame.width < Self.defaultWidth else { return }
+        var rect = frame
+        rect.origin.x = rect.maxX - Self.defaultWidth
+        rect.size.width = Self.defaultWidth
+        setFrame(rect, display: false)
+    }
     /// Header plus the up-next line.
     private static let compactHeight: CGFloat = 32 + 40
 

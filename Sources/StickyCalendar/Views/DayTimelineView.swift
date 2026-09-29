@@ -26,8 +26,9 @@ struct DayTimelineView: View {
     private static let space = "timeline"
     private var gutter: CGFloat { 44 * zoom }
     private let trailingInset: CGFloat = 8
-    /// Room above 00:00 and below 24:00 so their labels aren't clipped.
-    private var verticalInset: CGFloat { 8 * zoom }
+    /// Breathing room above 00:00 and below 24:00.
+    private var verticalInset: CGFloat { Self.inset(zoom) }
+    private static func inset(_ zoom: CGFloat) -> CGFloat { 20 * zoom }
 
     var body: some View {
         let geo = TimelineGeometry(dayStart: store.day, pointsPerHour: TimelineGeometry.defaultPointsPerHour * Double(zoom))
@@ -81,7 +82,7 @@ struct DayTimelineView: View {
     private func content(_ geo: TimelineGeometry, width: CGFloat, now: Date) -> some View {
         let slots = OverlapLayout.columns(for: store.timedEvents)
         return ZStack(alignment: .topLeading) {
-            HourGrid(geometry: geo, gutter: gutter, zoom: zoom)
+            HourGrid(geometry: geo, gutter: gutter, zoom: zoom, bleed: verticalInset)
             if store.isViewingToday { pastWash(geo, now: now, width: width) }
             creationSurface(geo, width: width)
             ForEach(store.timedEvents) { item in
@@ -113,8 +114,8 @@ struct DayTimelineView: View {
     /// Keeps the time in the middle of the view there when the zoom changes.
     private func keepCenter(from old: CGFloat, to new: CGFloat) {
         let hourHeight = TimelineGeometry.defaultPointsPerHour
-        let center = Double(scrollOffset - 8 * old + viewportHeight / 2) / (hourHeight * Double(old)) // in hours
-        let inset = Double(8 * new)
+        let center = Double(scrollOffset - Self.inset(old) + viewportHeight / 2) / (hourHeight * Double(old)) // in hours
+        let inset = Double(Self.inset(new))
         scrollBridge.scroll(animated: false) { viewport in
             let target = center * hourHeight * Double(new) + inset - viewport / 2
             return min(max(target, 0), max(24 * hourHeight * Double(new) + 2 * inset - viewport, 0))
@@ -312,11 +313,14 @@ struct HourGrid: View {
     let geometry: TimelineGeometry
     let gutter: CGFloat
     let zoom: CGFloat
+    /// How far the grid reaches past the day at each end. A Canvas clips what it draws, and
+    /// the 00:00 and 24:00 labels sit half outside the day.
+    let bleed: CGFloat
 
     var body: some View {
         Canvas { context, size in
             for hour in 0...24 {
-                let y = CGFloat(geometry.y(forHour: hour))
+                let y = CGFloat(geometry.y(forHour: hour)) + bleed
                 var line = Path()
                 line.move(to: CGPoint(x: gutter, y: y))
                 line.addLine(to: CGPoint(x: size.width, y: y))
@@ -328,7 +332,7 @@ struct HourGrid: View {
                 context.draw(context.resolve(label), at: CGPoint(x: gutter - 6, y: y), anchor: .trailing)
 
                 if hour < 24 {
-                    let mid = (y + CGFloat(geometry.y(forHour: hour + 1))) / 2
+                    let mid = (y + CGFloat(geometry.y(forHour: hour + 1)) + bleed) / 2
                     var half = Path()
                     half.move(to: CGPoint(x: gutter, y: mid))
                     half.addLine(to: CGPoint(x: size.width, y: mid))
@@ -336,6 +340,8 @@ struct HourGrid: View {
                 }
             }
         }
+        .frame(height: CGFloat(geometry.height) + 2 * bleed)
+        .offset(y: -bleed)
         .allowsHitTesting(false)
     }
 }
