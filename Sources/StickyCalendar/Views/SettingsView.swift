@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsView: View {
     let store: CalendarStore
     let settings: AppSettings
+    let updateChecker: UpdateChecker
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
@@ -37,6 +38,20 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Updates") {
+                LabeledContent("Version", value: "\(AppVersion.short) (build \(AppVersion.build))")
+                Text(updateChecker.summary).foregroundStyle(.secondary)
+                if case .available(let info) = updateChecker.status {
+                    Button("Get Version \(info.version.description)…") { UpdateActions.getUpdate(info) }
+                }
+                Toggle("Check for updates automatically", isOn: Binding(
+                    get: { updateChecker.automaticChecksEnabled },
+                    set: updateChecker.setAutomaticChecks
+                ))
+                Button("Check Now") { Task { await updateChecker.checkNow() } }
+                    .disabled(updateChecker.isDevelopmentBuild)
+            }
+
             Section {
                 Toggle("Launch at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
                 if let loginError {
@@ -45,7 +60,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 360, height: 480)
+        .frame(width: 380, height: 600)
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {

@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
     private let source = EventKitSource()
     private lazy var store = CalendarStore(source: source, settings: settings)
+    private let updateChecker = UpdateChecker(currentVersion: AppVersion.short)
+    private var updateTimer: Timer?
     private var panel: StickyPanel?
     private var statusItem: StatusItemController?
     private var settingsWindow: NSWindow?
@@ -20,12 +22,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = StatusItemController(
             isPanelVisible: { [weak panel] in panel?.isVisible ?? false },
             onToggle: { [weak self] in self?.togglePanel() },
-            onSettings: { [weak self] in self?.showSettings() }
+            onSettings: { [weak self] in self?.showSettings() },
+            updateChecker: updateChecker
         )
         panel.orderFrontRegardless()
 
         observeClock()
         Task { await store.requestAccessIfNeeded() }
+        scheduleUpdateChecks()
+    }
+
+    /// Checks at launch, then hourly asks whether a (daily) check is due.
+    private func scheduleUpdateChecks() {
+        let checker = updateChecker
+        Task { await checker.checkIfDue() }
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { _ in
+            Task { @MainActor in await checker.checkIfDue() }
+        }
     }
 
     private func togglePanel() {
@@ -36,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showSettings() {
         if settingsWindow == nil {
             let window = NSWindow(contentViewController: NSHostingController(
-                rootView: SettingsView(store: store, settings: settings)
+                rootView: SettingsView(store: store, settings: settings, updateChecker: updateChecker)
             ))
             window.title = "Sticky Calendar Settings"
             window.styleMask = [.titled, .closable]
@@ -85,4 +98,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         return main
     }
+}
+
+enum AppVersion {
+    static let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0-dev"
+    static let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
 }
