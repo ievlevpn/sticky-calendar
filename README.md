@@ -21,7 +21,7 @@ Drag to create, move and resize events; double-click to edit; ⌫ to delete; ⌘
 ⌘O (or the calendar button) opens Calendar, optionally on the day you're viewing;
 ⌘, (or the gear button) opens Settings; ⌘= / ⌘- zoom the timeline and note, ⌘0 resets
 (also in Settings → Zoom).
-Events with a Zoom, Meet, Teams or Webex link get a camera button that joins the call.
+Events with a Zoom, Meet, Teams, Webex or Jitsi link get a camera button that joins the call.
 ⌘M (or double-clicking the header) collapses the sticky to just what's on now or next;
 ⌃⌥S shows or hides it from any app (Settings → Shortcuts).
 The note button opens a note under the timeline for quick, disposable thoughts — one per

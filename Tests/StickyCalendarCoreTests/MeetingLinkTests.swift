@@ -28,4 +28,16 @@ struct MeetingLinkTests {
         #expect(MeetingLink.find(in: item(url: "zoommtg://zoom.us/join?confno=1")) != nil)
         #expect(MeetingLink.find(in: item(location: "https://notzoom.us/j/1")) == nil)
     }
+
+    @Test func findsJitsiWhereverItIsHosted() {
+        #expect(MeetingLink.find(in: item(url: "https://8x8.vc/acme/standup"))?.host == "8x8.vc")
+        #expect(MeetingLink.find(in: item(location: "https://meet.acme.org/Standup"))?.host == "meet.acme.org")
+        #expect(MeetingLink.find(in: item(notes: "Call: https://jitsi.example.net/weekly-sync"))?.host == "jitsi.example.net")
+    }
+
+    @Test func selfHostedPrefixesNeedARoom() {
+        #expect(MeetingLink.find(in: item(url: "https://meet.example.com")) == nil)
+        #expect(MeetingLink.find(in: item(url: "https://meet.example.com/")) == nil)
+        #expect(MeetingLink.find(in: item(url: "https://meetup.com/group/event")) == nil)
+    }
 }
