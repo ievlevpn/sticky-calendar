@@ -11,8 +11,13 @@ struct HeaderView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(store.day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))
-                .font(.system(size: 13, weight: .semibold))
+            // Drops the weekday, then the month, when a narrow window can't fit them.
+            ViewThatFits(in: .horizontal) {
+                dayTitle(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                dayTitle(.dateTime.day().month(.abbreviated))
+                dayTitle(.dateTime.day())
+            }
+            .layoutPriority(1)
             Button { store.goToDay(offset: -1) } label: { Image(systemName: "chevron.left") }
                 .buttonStyle(.borderless)
                 .help("Previous day")
@@ -50,5 +55,12 @@ struct HeaderView: View {
         // content by the header height), so the header needs its own bar material.
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private func dayTitle(_ format: Date.FormatStyle) -> some View {
+        Text(store.day.formatted(format))
+            .font(.system(size: 13, weight: .semibold))
+            .lineLimit(1)
+            .fixedSize()
     }
 }
