@@ -79,7 +79,8 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
         setFrameOrigin(NSPoint(x: visible.maxX - frame.width - 20, y: visible.maxY - frame.height - 20))
     }
 
-    /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning —
+    /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning,
+    /// ⌘O opens Calendar —
     /// unless a text field is editing.
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -105,6 +106,8 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
             store.undoManager.redo()
         case (_, [.control], "s"):
             togglePinned()
+        case (_, [.command], "o"):
+            CalendarJump.perform(day: store.day, settings: settings, store: store)
         default:
             return false
         }

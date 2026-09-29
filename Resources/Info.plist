@@ -22,6 +22,8 @@
     <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Sticky Calendar opens Calendar on the day you're viewing.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>Sticky Calendar shows your events on a floating timeline and lets you edit them.</string>
 </dict>

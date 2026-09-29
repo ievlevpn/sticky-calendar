@@ -9,6 +9,7 @@ public final class AppSettings {
         static let isPinned = "isPinned"
         static let hiddenCalendarIDs = "hiddenCalendarIDs"
         static let opacity = "opacity"
+        static let calendarJumpMode = "calendarJumpMode"
     }
 
     public static let opacityRange: ClosedRange<Double> = 0.5...1.0
@@ -19,12 +20,20 @@ public final class AppSettings {
     public private(set) var isPinned: Bool
     public private(set) var hiddenCalendarIDs: Set<String>
     public private(set) var opacity: Double
+    /// nil until the user has been asked (on the first click of the calendar button).
+    public private(set) var calendarJumpMode: CalendarJumpMode?
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         isPinned = defaults.object(forKey: Key.isPinned) as? Bool ?? true
         hiddenCalendarIDs = Set(defaults.stringArray(forKey: Key.hiddenCalendarIDs) ?? [])
         opacity = Self.clampOpacity(defaults.object(forKey: Key.opacity) as? Double ?? 0.92)
+        calendarJumpMode = defaults.string(forKey: Key.calendarJumpMode).flatMap(CalendarJumpMode.init(rawValue:))
+    }
+
+    public func setCalendarJumpMode(_ mode: CalendarJumpMode) {
+        calendarJumpMode = mode
+        defaults.set(mode.rawValue, forKey: Key.calendarJumpMode)
     }
 
     public func setPinned(_ pinned: Bool) {

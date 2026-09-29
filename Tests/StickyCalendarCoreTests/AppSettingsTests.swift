@@ -44,4 +44,18 @@ struct AppSettingsTests {
         s.setCalendar("home", visible: true)
         #expect(s.hiddenCalendarIDs.isEmpty)
     }
+
+    @Test func calendarButtonChoiceStartsUnaskedAndPersists() {
+        let s = AppSettings(defaults: defaults)
+        #expect(s.calendarJumpMode == nil)
+        s.setCalendarJumpMode(.sameDay)
+        #expect(AppSettings(defaults: defaults).calendarJumpMode == .sameDay)
+        s.setCalendarJumpMode(.justOpen)
+        #expect(AppSettings(defaults: defaults).calendarJumpMode == .justOpen)
+    }
+
+    @Test func unknownStoredCalendarButtonChoiceCountsAsUnasked() {
+        defaults.set("somethingElse", forKey: "calendarJumpMode")
+        #expect(AppSettings(defaults: defaults).calendarJumpMode == nil)
+    }
 }

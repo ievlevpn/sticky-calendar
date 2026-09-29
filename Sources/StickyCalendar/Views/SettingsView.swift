@@ -36,6 +36,16 @@ struct SettingsView: View {
                 Slider(value: Binding(get: { settings.opacity }, set: settings.setOpacity), in: AppSettings.opacityRange) {
                     Text("Opacity")
                 }
+                Picker("Calendar button", selection: Binding<CalendarJumpMode?>(
+                    get: { settings.calendarJumpMode },
+                    set: { if let mode = $0 { settings.setCalendarJumpMode(mode) } }
+                )) {
+                    if settings.calendarJumpMode == nil {
+                        Text("Ask on first use").tag(CalendarJumpMode?.none)
+                    }
+                    Text("Show the same day").tag(CalendarJumpMode?.some(.sameDay))
+                    Text("Just open Calendar").tag(CalendarJumpMode?.some(.justOpen))
+                }
             }
 
             Section("Updates") {

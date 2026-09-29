@@ -33,10 +33,27 @@ enum SystemLinks {
            NSWorkspace.shared.open(url) {
             return
         }
+        openCalendarApp()
+    }
+
+    static func openCalendarApp() {
+        // macOS 14 activation is cooperative: only the active app can hand focus to another.
+        // The sticky never activates on click, so activate first or Calendar stays behind.
+        NSApp.activate()
         NSWorkspace.shared.openApplication(
             at: URL(fileURLWithPath: "/System/Applications/Calendar.app"),
             configuration: NSWorkspace.OpenConfiguration()
         )
+    }
+
+    /// Opens Calendar.app in Day view on `date`. False if the script failed, e.g. because
+    /// the user declined Automation permission (error -1743).
+    static func showDayInCalendar(_ date: Date) -> Bool {
+        NSApp.activate() // see openCalendarApp(): lets the script's `activate` take effect
+        var error: NSDictionary?
+        NSAppleScript(source: CalendarScript.showDay(date, calendar: .autoupdatingCurrent))?
+            .executeAndReturnError(&error)
+        return error == nil
     }
 
     static func openPrivacySettings() {
