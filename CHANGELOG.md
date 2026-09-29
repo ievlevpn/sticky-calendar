@@ -2,6 +2,14 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## Unreleased
+
+### Added
+- The note can have **its own sticky** (Settings → Note → Show the note), with its own pin and position; per-day notes still follow the calendar's date.
+
+### Changed
+- **Settings open over full-screen apps**: the Settings window now floats like the stickies instead of switching to the desktop. ⌘W closes it.
+
 ## 0.8.0 — 2026-09-29
 
 ### Added

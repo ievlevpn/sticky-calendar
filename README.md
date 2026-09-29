@@ -30,8 +30,9 @@ sticky; the first time, it asks which source and where (Settings → Reminders c
 Switch between Today (overdue and due today) and whole lists. Tick, add, rename and delete
 them there; a date typed into a new one ("Call Sam tomorrow 10am") becomes its due
 date. ⌃⌥R shows or hides them from any app.
-The note button opens a note under the timeline for quick, disposable thoughts — one per
-day by default, following the date arrows like a journal (Settings → Note):
+The note button opens a note under the timeline (or in its own sticky, Settings → Note)
+for quick, disposable thoughts — one per day by default, following the date arrows like a
+journal:
 Markdown renders as you type, Obsidian-style — only the line you're editing shows its
 syntax, and task boxes tick with a click; LaTeX math (`$…$`, `$$…$$`) is typeset too.
 Drag its bar to resize; **Clear** empties it (⌘Z brings it back).
