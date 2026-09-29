@@ -32,6 +32,7 @@ struct StickyContentView: View {
                 onRefresh: refresh, isRefreshing: showsRemindersTab && reminderStore.isLoading,
                 onTogglePin: onTogglePin, onToggleCompact: onToggleCompact, onSettings: onSettings
             )
+            .zIndex(1) // its menu's label hangs over the content below
             if showsRemindersTab {
                 RemindersView(store: reminderStore, settings: reminderSettings, zoom: settings.zoom,
                               onChoosePlacement: onChooseReminderPlacement)
