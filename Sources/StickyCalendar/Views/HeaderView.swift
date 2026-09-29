@@ -4,6 +4,8 @@ import SwiftUI
 struct HeaderView: View {
     let store: CalendarStore
     let settings: AppSettings
+    let isNoteVisible: Bool
+    let onToggleNote: () -> Void
     let onTogglePin: () -> Void
 
     var body: some View {
@@ -22,6 +24,11 @@ struct HeaderView: View {
                     .buttonStyle(.borderless)
                     .help("Jump to now")
             }
+            Button(action: onToggleNote) {
+                Image(systemName: isNoteVisible ? "note.text" : "note")
+            }
+            .buttonStyle(.borderless)
+            .help(isNoteVisible ? "Hide note" : "Show note")
             Button { CalendarJump.perform(day: store.day, settings: settings, store: store) } label: {
                 Image(systemName: "calendar")
             }

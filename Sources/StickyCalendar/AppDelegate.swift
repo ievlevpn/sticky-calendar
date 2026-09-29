@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
+    private let notepad = Notepad()
     private let source = EventKitSource()
     private lazy var store = CalendarStore(source: source, settings: settings)
     private let updateChecker = UpdateChecker(currentVersion: AppVersion.short)
@@ -17,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = Self.makeMainMenu()
 
-        let panel = StickyPanel(store: store, settings: settings)
+        let panel = StickyPanel(store: store, settings: settings, notepad: notepad)
         self.panel = panel
         statusItem = StatusItemController(
             isPanelVisible: { [weak panel] in panel?.isVisible ?? false },

@@ -1,15 +1,26 @@
 import StickyCalendarCore
 import SwiftUI
 
-/// Root of the sticky window: header, all-day strip, timeline, plus dialogs and error banner.
+/// Root of the sticky window: header, all-day strip, timeline, optional note, plus dialogs
+/// and error banner.
 struct StickyContentView: View {
     let store: CalendarStore
     let settings: AppSettings
+    let notepad: Notepad
+    let noteEditor: NoteEditorController
     let onTogglePin: () -> Void
+
+    @State private var contentHeight: CGFloat = 0
+    /// Header plus the least timeline worth keeping when the note grows.
+    private let reservedHeight: CGFloat = 32 + 140
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderView(store: store, settings: settings, onTogglePin: onTogglePin)
+            HeaderView(
+                store: store, settings: settings,
+                isNoteVisible: notepad.isVisible, onToggleNote: toggleNote,
+                onTogglePin: onTogglePin
+            )
             switch store.access {
             case .granted:
                 AllDayStrip(store: store)
@@ -21,8 +32,12 @@ struct StickyContentView: View {
             case .denied:
                 AccessDeniedView()
             }
+            if notepad.isVisible {
+                NotePane(notepad: notepad, editor: noteEditor, maxHeight: contentHeight - reservedHeight)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
         .background(VisualEffectBackground().opacity(settings.opacity))
         .overlay(alignment: .bottom) { ErrorBanner(store: store) }
         .confirmationDialog(
@@ -51,6 +66,11 @@ struct StickyContentView: View {
             Button("Change All Future Events") { store.confirmEdit(edit, span: .futureEvents) }
             Button("Cancel", role: .cancel) {}
         }
+    }
+
+    private func toggleNote() {
+        if notepad.isVisible { noteEditor.resignFocus() } else { noteEditor.requestFocus() }
+        notepad.setVisible(!notepad.isVisible)
     }
 
     private var deleteTitle: String {

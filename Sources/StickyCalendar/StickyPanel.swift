@@ -10,11 +10,15 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
     private static let autosaveName = "StickyPanel"
     private let store: CalendarStore
     private let settings: AppSettings
+    private let notepad: Notepad
+    private let noteEditor: NoteEditorController
     private var keyMonitor: Any?
 
-    init(store: CalendarStore, settings: AppSettings) {
+    init(store: CalendarStore, settings: AppSettings, notepad: Notepad) {
         self.store = store
         self.settings = settings
+        self.notepad = notepad
+        noteEditor = NoteEditorController(notepad: notepad)
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 280, height: 520),
             styleMask: [.titled, .resizable, .fullSizeContentView, .nonactivatingPanel],
@@ -36,6 +40,8 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
         let hosting = NSHostingView(rootView: StickyContentView(
             store: store,
             settings: settings,
+            notepad: notepad,
+            noteEditor: noteEditor,
             onTogglePin: { [weak self] in self?.togglePinned() }
         ))
         hosting.sizingOptions = [] // let the user resize freely
@@ -53,6 +59,18 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    /// A click outside the note ends note editing, so the timeline's keys (⌫, arrows, ⌘Z)
+    /// act on events again rather than on the note's text.
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown,
+           let editor = firstResponder as? NSTextView,
+           let hit = contentView?.superview?.hitTest(event.locationInWindow),
+           !hit.isDescendant(of: editor.enclosingScrollView ?? editor) {
+            makeFirstResponder(nil)
+        }
+        super.sendEvent(event)
+    }
 
     func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { store.undoManager }
 
