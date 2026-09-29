@@ -13,11 +13,13 @@ struct RemindersView: View {
 
     @State private var newText = ""
     @State private var addListID: String?
-    @State private var renamingID: String?
-    @State private var renameText = ""
+    /// The reminder whose editor popover is open.
+    @State private var editingID: String?
+    @State private var isSearching = false
+    @State private var query = ""
     @FocusState private var focus: Field?
 
-    private enum Field: Hashable { case add, rename }
+    private enum Field: Hashable { case add, search }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -110,27 +112,59 @@ struct RemindersView: View {
 
     private var modeBar: some View {
         HStack(spacing: 8) {
-            Picker("", selection: Binding(get: { settings.mode }, set: settings.setMode)) {
-                Text("Today").tag(ReminderMode.today)
-                Text("Lists").tag(ReminderMode.lists)
+            if isSearching {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search reminders", text: $query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .focused($focus, equals: .search)
+                    .onExitCommand(perform: endSearch)
+                Button(action: endSearch) { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
+                    .buttonStyle(.borderless)
+                    .help("Stop searching (Esc)")
+            } else {
+                Picker("", selection: Binding(get: { settings.mode }, set: settings.setMode)) {
+                    Text("Today").tag(ReminderMode.today)
+                    Text("Lists").tag(ReminderMode.lists)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.small)
+                .fixedSize()
+                Spacer(minLength: 0)
+                Button(action: startSearch) { Image(systemName: "magnifyingglass") }
+                    .buttonStyle(.borderless)
+                    .help("Search (⌘F)")
+                Button { settings.setShowsCompleted(!settings.showsCompleted) } label: {
+                    Image(systemName: settings.showsCompleted ? "checkmark.circle.fill" : "checkmark.circle")
+                }
+                .buttonStyle(.borderless)
+                .help(settings.showsCompleted ? "Hide completed" : "Show completed today")
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
-            .fixedSize()
-            Spacer(minLength: 0)
-            Button { settings.setShowsCompleted(!settings.showsCompleted) } label: {
-                Image(systemName: settings.showsCompleted ? "checkmark.circle.fill" : "checkmark.circle")
-            }
-            .buttonStyle(.borderless)
-            .help(settings.showsCompleted ? "Hide completed" : "Show completed today")
         }
         .padding(.horizontal, 12)
         .frame(height: 30)
+        .onChange(of: store.searchRequest) { _, _ in startSearch() }
+    }
+
+    private func startSearch() {
+        isSearching = true
+        focus = .search
+    }
+
+    private func endSearch() {
+        isSearching = false
+        query = ""
+        focus = nil
     }
 
     private var list: some View {
-        let sections = store.sections
+        let searching = isSearching && !query.trimmingCharacters(in: .whitespaces).isEmpty
+        let results = searching ? store.search(query) : []
+        let sections = searching
+            ? [ReminderSection(id: "results", title: results.isEmpty ? "No matches" : "\(results.count) found",
+                               kind: .list, color: nil, items: results)]
+            : store.sections
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if sections.isEmpty {
@@ -180,24 +214,21 @@ struct RemindersView: View {
             .buttonStyle(.plain)
             .disabled(!writable)
             .help(item.isCompleted ? "Mark as not done" : "Mark as done")
-            if renamingID == item.id {
-                TextField("Title", text: $renameText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12 * zoom))
-                    .focused($focus, equals: .rename)
-                    .onSubmit { commitRename(item) }
-                    .onExitCommand { renamingID = nil }
-                    .onChange(of: focus) { _, now in if now != .rename { commitRename(item) } }
-            } else {
-                Text(item.title)
-                    .font(.system(size: 12 * zoom))
+            VStack(alignment: .leading, spacing: 1) {
+                (item.priority == .none ? Text("") : Text(item.priority.marks + " ").foregroundColor(.orange).bold())
+                    + Text(item.title)
                     .strikethrough(item.isCompleted)
-                    .foregroundStyle(item.isCompleted ? .secondary : .primary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2) { if writable { startRename(item) } }
+                    .foregroundColor(item.isCompleted ? .secondary : .primary)
+                if let notes = item.notes {
+                    Text(notes.components(separatedBy: .newlines).first ?? notes)
+                        .font(.system(size: 10.5 * zoom))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
+            .font(.system(size: 12 * zoom))
+            .lineLimit(2)
+            .frame(maxWidth: .infinity, alignment: .leading)
             if let due = dueLabel(item, in: section) {
                 Text(due.text)
                     .font(.system(size: 10.5 * zoom).monospacedDigit())
@@ -208,8 +239,22 @@ struct RemindersView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 3 * zoom)
+        .contentShape(Rectangle())
+        .onTapGesture { if writable { editingID = item.id } }
+        .popover(isPresented: Binding(get: { editingID == item.id }, set: { if !$0 { editingID = nil } }),
+                 arrowEdge: .leading) {
+            ReminderEditor(item: item, listTitle: list?.title ?? "", canEditNotes: store.canEditNotes) { result in
+                Task {
+                    await store.edit(item, title: result.title, due: result.due, dueHasTime: result.hasTime,
+                                     priority: result.priority, notes: result.notes)
+                }
+            } onDelete: {
+                editingID = nil
+                Task { await store.delete(item) }
+            }
+        }
         .contextMenu {
-            Button("Rename") { startRename(item) }.disabled(!writable)
+            Button("Edit…") { editingID = item.id }.disabled(!writable)
             Button(item.isCompleted ? "Mark as Not Done" : "Mark as Done") { Task { await store.toggle(item) } }.disabled(!writable)
             Divider()
             Button("Delete", role: .destructive) { Task { await store.delete(item) } }.disabled(!writable)
@@ -272,19 +317,6 @@ struct RemindersView: View {
             // Put the text back if it couldn't be added, so nothing typed is lost.
             if await store.add(text, listID: listID) == nil, newText.isEmpty { newText = text }
         }
-    }
-
-    private func startRename(_ item: ReminderItem) {
-        renameText = item.title
-        renamingID = item.id
-        focus = .rename
-    }
-
-    private func commitRename(_ item: ReminderItem) {
-        guard renamingID == item.id else { return }
-        renamingID = nil
-        let title = renameText
-        Task { await store.rename(item, to: title) }
     }
 
     /// The time for today's timed ones; the day for others ("Tomorrow", "Mon", "26 Sep");

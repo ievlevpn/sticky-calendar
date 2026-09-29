@@ -138,6 +138,9 @@ final class StickyPanel: FloatingPanel {
         case ([.command], "r"):
             if showsReminders { Task { await reminderStore.refresh() } } else { store.refresh() }
             return true
+        case ([.command], "f") where showsReminders:
+            reminderStore.requestSearch()
+            return true
         case ([.command], "m"):
             toggleCompact()
             return true

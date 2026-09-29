@@ -104,6 +104,14 @@ public struct ReminderSection: Identifiable, Equatable, Sendable {
     /// The list's colour, for list sections.
     public let color: RGBA?
     public let items: [ReminderItem]
+
+    public init(id: String, title: String, kind: Kind, color: RGBA?, items: [ReminderItem]) {
+        self.id = id
+        self.title = title
+        self.kind = kind
+        self.color = color
+        self.items = items
+    }
 }
 
 /// Where reminders appear: their own sticky, or a tab of the calendar sticky.
