@@ -56,6 +56,7 @@ final class StickyPanel: FloatingPanel {
     override func windowDidBecomeKey(_ notification: Notification) {
         super.windowDidBecomeKey(notification)
         store.reload()
+        if showsReminders { Task { await reminderStore.reload() } }
     }
 
     func togglePinned() {

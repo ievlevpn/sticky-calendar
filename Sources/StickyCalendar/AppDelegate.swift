@@ -9,8 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let source = EventKitSource()
     private lazy var store = CalendarStore(source: source, settings: settings)
     private let reminderSettings = ReminderSettings()
-    private let reminderSource = ReminderKitSource()
-    private lazy var reminderStore = ReminderStore(source: reminderSource, settings: reminderSettings)
+    private lazy var reminderStore = ReminderStore(source: ReminderSources.make(reminderSettings), settings: reminderSettings)
+    private var reminderRefresh: Timer?
     private var remindersPanel: RemindersPanel?
     private let updateChecker = UpdateChecker(currentVersion: AppVersion.short)
     private var updateTimer: Timer?
@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if reminderSettings.placement == .window, reminderSettings.isVisible { showRemindersWindow() }
         hotKey.apply(settings.globalHotKey.carbonKey)
         remindersHotKey.apply(reminderSettings.hotKey.carbonKey)
+        scheduleReminderRefresh()
 
         observeClock()
         Task { await store.requestAccessIfNeeded() }
@@ -127,6 +128,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         remindersPanel?.orderOut(nil)
     }
 
+    /// Settings → Reminders → Change Source: forget the source and show the chooser.
+    private func changeReminderSource() {
+        reminderSettings.setProvider(nil)
+        reminderStore.use(nil)
+        if !reminderSettings.isVisible { toggleReminders() }
+    }
+
+    /// Todoist and TickTick don't announce changes: look again every few minutes.
+    private func scheduleReminderRefresh() {
+        reminderRefresh = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.reminderSettings.isVisible else { return }
+                Task { await self.reminderStore.reload() }
+            }
+        }
+    }
+
     /// Settings → Reminders: a new placement starts closed, and the other one's window goes.
     private func setReminderPlacement(_ placement: ReminderPlacement) {
         guard placement != reminderSettings.placement else { return }
@@ -146,6 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     store: store, settings: settings, notepad: notepad, hotKey: hotKey,
                     reminderStore: reminderStore, reminderSettings: reminderSettings, remindersHotKey: remindersHotKey,
                     onReminderPlacement: { [weak self] in self?.setReminderPlacement($0) },
+                    onChangeReminderSource: { [weak self] in self?.changeReminderSource() },
                     updateChecker: updateChecker
                 )
             ))

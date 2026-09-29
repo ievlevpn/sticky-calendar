@@ -19,18 +19,25 @@ struct RemindersView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            modeBar
-            Divider()
-            switch store.access {
-            case .granted:
-                list
-                addBar
-            case .notDetermined:
-                prompt("Your reminders appear here once Sticky Calendar may read them.",
-                       button: "Allow Access to Reminders") { Task { await store.requestAccessIfNeeded() } }
-            case .denied:
-                prompt("Sticky Calendar isn't allowed to see your reminders.",
-                       button: "Open Privacy Settings") { SystemLinks.openRemindersPrivacySettings() }
+            if !store.hasSource || settings.provider == nil {
+                ReminderSourceChooser(store: store, settings: settings)
+            } else {
+                modeBar
+                Divider()
+                switch (store.access, settings.provider) {
+                case (.granted, _):
+                    list
+                    addBar
+                case (.notDetermined, .appleReminders?):
+                    prompt("Your reminders appear here once Sticky Calendar may read them.",
+                           button: "Allow Access to Reminders") { Task { await store.requestAccessIfNeeded() } }
+                case (.denied, .appleReminders?):
+                    prompt("Sticky Calendar isn't allowed to see your reminders.",
+                           button: "Open Privacy Settings") { SystemLinks.openRemindersPrivacySettings() }
+                case (_, let provider):
+                    // A missing or rejected token, or a vault that can't be read: set it up again.
+                    ReminderSourceChooser(store: store, settings: settings, initial: provider)
+                }
             }
         }
         .task { await store.requestAccessIfNeeded() }
@@ -156,7 +163,9 @@ struct RemindersView: View {
             Divider()
             Button("Delete", role: .destructive) { Task { await store.delete(item) } }.disabled(!writable)
             Divider()
-            Button("Open Reminders") { SystemLinks.openRemindersApp() }
+            Button("Open in \(settings.provider?.name ?? "Reminders")") {
+                if let url = store.link(for: item) { NSWorkspace.shared.open(url) }
+            }
         }
     }
 

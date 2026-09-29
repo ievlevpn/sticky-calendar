@@ -85,6 +85,23 @@ public enum ReminderMode: String, Sendable, CaseIterable {
     case lists
 }
 
+/// Where reminders come from; asked the first time the reminders view opens.
+public enum ReminderProvider: String, Sendable, CaseIterable {
+    case appleReminders
+    case todoist
+    case tickTick
+    case obsidian
+
+    public var name: String {
+        switch self {
+        case .appleReminders: "Apple Reminders"
+        case .todoist: "Todoist"
+        case .tickTick: "TickTick"
+        case .obsidian: "Obsidian"
+        }
+    }
+}
+
 /// The reminders window's own system-wide show/hide shortcut.
 public enum RemindersHotKeyChoice: String, Sendable, CaseIterable {
     case off
@@ -112,6 +129,9 @@ public final class ReminderSettings {
         static let isPinned = "remindersPinned"
         static let isVisible = "remindersVisible"
         static let hotKey = "remindersHotKey"
+        static let provider = "reminderProvider"
+        static let obsidianVault = "obsidianVaultPath"
+        static let obsidianInbox = "obsidianInboxPath"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -126,6 +146,11 @@ public final class ReminderSettings {
     /// The reminders window is open, or (tab placement) the tab is showing.
     public private(set) var isVisible: Bool
     public private(set) var hotKey: RemindersHotKeyChoice
+    /// nil until chosen.
+    public private(set) var provider: ReminderProvider?
+    public private(set) var obsidianVaultPath: String?
+    /// Relative to the vault; where new reminders go.
+    public private(set) var obsidianInboxPath: String
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -136,6 +161,22 @@ public final class ReminderSettings {
         isPinned = defaults.object(forKey: Key.isPinned) as? Bool ?? true
         isVisible = defaults.bool(forKey: Key.isVisible)
         hotKey = defaults.string(forKey: Key.hotKey).flatMap(RemindersHotKeyChoice.init(rawValue:)) ?? .controlOptionR
+        provider = defaults.string(forKey: Key.provider).flatMap(ReminderProvider.init(rawValue:))
+        obsidianVaultPath = defaults.string(forKey: Key.obsidianVault)
+        obsidianInboxPath = defaults.string(forKey: Key.obsidianInbox) ?? "Inbox.md"
+    }
+
+    /// nil forgets the choice, so the reminders view asks again.
+    public func setProvider(_ value: ReminderProvider?) {
+        provider = value
+        defaults.set(value?.rawValue, forKey: Key.provider)
+    }
+
+    public func setObsidian(vault: String, inbox: String) {
+        obsidianVaultPath = vault
+        obsidianInboxPath = ObsidianSource.normalizedInboxPath(inbox)
+        defaults.set(vault, forKey: Key.obsidianVault)
+        defaults.set(obsidianInboxPath, forKey: Key.obsidianInbox)
     }
 
     public func setPlacement(_ value: ReminderPlacement) {
@@ -205,5 +246,26 @@ public struct ReminderInput: Equatable, Sendable {
         // A title that was only a date keeps its words rather than going blank.
         if title.isEmpty { return ReminderInput(title: text.trimmingCharacters(in: .whitespaces), due: nil, dueHasTime: false) }
         return ReminderInput(title: title, due: date, dueHasTime: hasTime)
+    }
+}
+
+/// Builds the source the settings name (nil when none is chosen or it isn't set up).
+public enum ReminderSources {
+    @MainActor
+    public static func make(_ settings: ReminderSettings) -> ReminderSource? {
+        switch settings.provider {
+        case nil:
+            nil
+        case .appleReminders:
+            ReminderKitSource()
+        case .todoist:
+            TodoistSource(token: ReminderTokens.token(for: TodoistSource.tokenAccount) ?? "")
+        case .tickTick:
+            TickTickSource(token: ReminderTokens.token(for: TickTickSource.tokenAccount) ?? "")
+        case .obsidian:
+            settings.obsidianVaultPath.map {
+                ObsidianSource(vault: URL(fileURLWithPath: $0), inboxPath: settings.obsidianInboxPath)
+            }
+        }
     }
 }

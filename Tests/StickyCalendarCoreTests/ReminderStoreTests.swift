@@ -148,6 +148,13 @@ struct ReminderStoreTests {
         let r = ReminderSettings(defaults: defaults)
         #expect(r.placement == .tab && r.mode == .lists && r.showsCompleted && r.hiddenListIDs == ["x"])
         #expect(!r.isPinned && r.isVisible && r.hotKey == .off)
+        #expect(r.provider == nil && r.obsidianInboxPath == "Inbox.md")
+        r.setProvider(.obsidian)
+        r.setObsidian(vault: "/v", inbox: "Tasks/Inbox")
+        let o = ReminderSettings(defaults: defaults)
+        #expect(o.provider == .obsidian && o.obsidianVaultPath == "/v" && o.obsidianInboxPath == "Tasks/Inbox.md")
+        o.setProvider(nil)
+        #expect(ReminderSettings(defaults: defaults).provider == nil)
     }
 }
 

@@ -11,6 +11,7 @@ struct SettingsView: View {
     let reminderSettings: ReminderSettings
     let remindersHotKey: GlobalHotKey
     let onReminderPlacement: (ReminderPlacement) -> Void
+    let onChangeReminderSource: () -> Void
     let updateChecker: UpdateChecker
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -70,6 +71,16 @@ struct SettingsView: View {
             }
 
             Section("Reminders") {
+                LabeledContent("Source") {
+                    HStack {
+                        Text(reminderSettings.provider?.name ?? "Not chosen yet")
+                            .foregroundStyle(reminderSettings.provider == nil ? .secondary : .primary)
+                        if reminderSettings.provider == .obsidian, let vault = reminderSettings.obsidianVaultPath {
+                            Text("· \((vault as NSString).lastPathComponent)").foregroundStyle(.secondary)
+                        }
+                        Button(reminderSettings.provider == nil ? "Choose…" : "Change Source…", action: onChangeReminderSource)
+                    }
+                }
                 Picker("Show reminders", selection: Binding(get: { reminderSettings.placement }, set: onReminderPlacement)) {
                     Text("In their own sticky").tag(ReminderPlacement.window)
                     Text("As a tab in this sticky").tag(ReminderPlacement.tab)
@@ -93,7 +104,7 @@ struct SettingsView: View {
                             }
                         }
                     }
-                } else {
+                } else if reminderSettings.provider != nil {
                     Text("Lists appear here once Sticky Calendar may read your reminders.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
