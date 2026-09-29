@@ -5,6 +5,13 @@ public struct UpNext: Equatable, Sendable {
     public let item: EventItem
     public let isOngoing: Bool
 
+    /// How much of the event has passed, 0…1 (0 until it starts).
+    public func progress(at now: Date) -> Double {
+        let duration = item.end.timeIntervalSince(item.start)
+        guard duration > 0 else { return now >= item.end ? 1 : 0 }
+        return min(max(now.timeIntervalSince(item.start) / duration, 0), 1)
+    }
+
     /// Among timed events: an ongoing one (the first to end, if several), else the next
     /// to start; nil when nothing is left.
     public static func pick(from events: [EventItem], now: Date) -> UpNext? {

@@ -30,7 +30,8 @@ struct UpNextRow: View {
     let onExpand: () -> Void
 
     var body: some View {
-        SwiftUI.TimelineView(.everyMinute) { context in
+        // Every 15 s, so the progress fill moves smoothly through a meeting.
+        SwiftUI.TimelineView(.periodic(from: .now, by: 15)) { context in
             let now = context.date
             let upNext = UpNext.pick(from: store.timedEvents, now: store.isViewingToday ? now : store.day)
             HStack(spacing: 8) {
@@ -59,9 +60,26 @@ struct UpNextRow: View {
             }
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(alignment: .leading) { progressFill(upNext, now: now) }
             .contentShape(Rectangle())
             .onTapGesture(perform: onExpand)
             .help("Click to expand (⌘M)")
+        }
+    }
+
+    /// The event on now fills the row with its colour, left to right, as it goes: empty
+    /// when it starts, full when it ends. Nothing before it starts.
+    @ViewBuilder
+    private func progressFill(_ upNext: UpNext?, now: Date) -> some View {
+        if let upNext, upNext.isOngoing, store.isViewingToday {
+            let color = Color(rgba: store.calendarInfo(id: upNext.item.calendarID)?.color ?? .fallback)
+            GeometryReader { geo in
+                Rectangle()
+                    .fill(color.opacity(0.28))
+                    .frame(width: geo.size.width * upNext.progress(at: now))
+                    .animation(.easeInOut(duration: 0.6), value: upNext.progress(at: now))
+            }
+            .allowsHitTesting(false)
         }
     }
 
