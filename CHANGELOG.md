@@ -2,7 +2,7 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
-## Unreleased
+## 0.12.1 — 2026-09-29
 
 ### Changed
 - In **compact mode**, the bar fills with the event's colour as it goes, from empty when it starts to full when it ends.
