@@ -24,10 +24,11 @@ Drag to create, move and resize events; double-click to edit; ⌫ to delete; ⌘
 Events with a Zoom, Meet, Teams, Webex or Jitsi link get a camera button that joins the call.
 ⌘M (or double-clicking the header) collapses the sticky to just what's on now or next;
 ⌃⌥S shows or hides it from any app (Settings → Shortcuts).
-The checklist button shows your reminders — from Apple Reminders, Todoist, TickTick or the
-tasks in an Obsidian vault (you choose the first time) — as a tab of this sticky (the default) or in their own sticky; the first time, it asks
-(Settings → Reminders changes it) — either Today (overdue and due today) or whole lists. Tick, add, rename and
-delete them there; a date typed into a new one ("Call Sam tomorrow 10am") becomes its due
+The checklist button shows your reminders from Apple Reminders, Todoist, TickTick or the
+tasks in an Obsidian vault, either as a tab of this sticky (the default) or in their own
+sticky; the first time, it asks which source and where (Settings → Reminders changes both).
+Switch between Today (overdue and due today) and whole lists. Tick, add, rename and delete
+them there; a date typed into a new one ("Call Sam tomorrow 10am") becomes its due
 date. ⌃⌥R shows or hides them from any app.
 The note button opens a note under the timeline for quick, disposable thoughts — one per
 day by default, following the date arrows like a journal (Settings → Note):
