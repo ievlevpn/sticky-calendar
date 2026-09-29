@@ -2,7 +2,7 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
-## Unreleased
+## 0.12.0 — 2026-09-29
 
 ### Changed
 - **The date is the control**: click it for a month picker (today ringed in red), or scroll over it to step a day at a time; the day arrows are gone. A red **Today** chip takes you back from another day, and **Now** appears on today when the current time is scrolled out of view.
