@@ -22,10 +22,10 @@ struct RemindersView: View {
             if !store.hasSource || settings.provider == nil {
                 ReminderSourceChooser(store: store, settings: settings)
             } else {
-                modeBar
-                Divider()
                 switch (store.access, settings.provider) {
                 case (.granted, _):
+                    modeBar
+                    Divider()
                     list
                     addBar
                 case (.notDetermined, .appleReminders?):

@@ -40,7 +40,8 @@ public final class ObsidianSource: ReminderSource {
     public func requestAccess() async -> CalendarAccess { currentAccess() }
 
     public func lists() -> [ReminderListInfo] {
-        let paths = files.contains(inboxPath) ? files : [inboxPath] + files
+        // The inbox first, even before it exists.
+        let paths = [inboxPath] + files.filter { $0 != inboxPath }
         return paths.map { path in
             ReminderListInfo(id: path, title: Self.title(of: path), color: Self.color(for: path))
         }

@@ -71,6 +71,8 @@ struct ObsidianSourceTests {
         _ = try await s.save(ReminderItem(title: "Call Sam", listID: "Inbox.md", due: at(10), dueHasTime: true))
         #expect(try read("Inbox.md") == "- [ ] Buy milk 📅 2026-09-28\n- [ ] Call Sam 📅 2026-09-28 ⏰ 2026-09-28 10:00\n")
         #expect(saved.id == "Inbox.md#0")
+        _ = try await s.reminders(completedSince: at(0))
+        #expect(s.lists().map(\.title) == ["Inbox", "Home", "Q4"])   // the inbox stays first once it exists
     }
 
     @Test func ticksRenamesAndDeletesInPlace() async throws {
