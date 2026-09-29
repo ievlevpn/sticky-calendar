@@ -8,6 +8,9 @@ struct StickyContentView: View {
     let settings: AppSettings
     let notepad: Notepad
     let noteEditor: NoteEditorController
+    let reminderStore: ReminderStore
+    let reminderSettings: ReminderSettings
+    let onToggleReminders: () -> Void
     let onTogglePin: () -> Void
     let onToggleCompact: () -> Void
     let onSettings: () -> Void
@@ -19,11 +22,13 @@ struct StickyContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             HeaderView(
-                store: store, settings: settings,
-                isNoteVisible: notepad.isVisible, onToggleNote: toggleNote,
+                store: store, settings: settings, reminderSettings: reminderSettings,
+                isNoteVisible: notepad.isVisible, onToggleNote: toggleNote, onToggleReminders: onToggleReminders,
                 onTogglePin: onTogglePin, onToggleCompact: onToggleCompact, onSettings: onSettings
             )
-            if settings.isCompact, store.access == .granted {
+            if reminderSettings.placement == .tab, reminderSettings.isVisible, !settings.isCompact {
+                RemindersView(store: reminderStore, settings: reminderSettings, zoom: settings.zoom)
+            } else if settings.isCompact, store.access == .granted {
                 UpNextRow(store: store, onExpand: onToggleCompact)
             } else {
                 fullContent

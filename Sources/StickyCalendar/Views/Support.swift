@@ -56,6 +56,18 @@ enum SystemLinks {
         return error == nil
     }
 
+    static func openRemindersApp() {
+        NSApp.activate() // see openCalendarApp()
+        NSWorkspace.shared.openApplication(
+            at: URL(fileURLWithPath: "/System/Applications/Reminders.app"),
+            configuration: NSWorkspace.OpenConfiguration()
+        )
+    }
+
+    static func openRemindersPrivacySettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")!)
+    }
+
     static func openPrivacySettings() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
     }

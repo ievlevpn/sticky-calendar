@@ -2,31 +2,33 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIdentifier</key>
-    <string>com.ievlevpn.StickyCalendar</string>
-    <key>CFBundleName</key>
-    <string>StickyCalendar</string>
-    <key>CFBundleDisplayName</key>
-    <string>Sticky Calendar</string>
-    <key>CFBundleExecutable</key>
-    <string>StickyCalendar</string>
-    <key>CFBundleIconFile</key>
-    <string>AppIcon</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSHighResolutionCapable</key>
-    <true/>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>Sticky Calendar opens Calendar on the day you're viewing.</string>
-    <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Sticky Calendar shows your events on a floating timeline and lets you edit them.</string>
+	<key>CFBundleDisplayName</key>
+	<string>Sticky Calendar</string>
+	<key>CFBundleExecutable</key>
+	<string>StickyCalendar</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.ievlevpn.StickyCalendar</string>
+	<key>CFBundleName</key>
+	<string>StickyCalendar</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Sticky Calendar opens Calendar on the day you're viewing.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Sticky Calendar shows your events on a floating timeline and lets you edit them.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Sticky Calendar shows your reminders in a sticky and lets you tick, add and rename them.</string>
 </dict>
 </plist>

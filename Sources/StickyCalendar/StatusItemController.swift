@@ -6,20 +6,27 @@ import StickyCalendarCore
 final class StatusItemController: NSObject, NSMenuDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let toggleItem = NSMenuItem(title: "Hide Sticky", action: #selector(toggle), keyEquivalent: "")
+    private let remindersItem = NSMenuItem(title: "Show Reminders", action: #selector(toggleReminders), keyEquivalent: "")
     private let updateItem = NSMenuItem(title: "", action: #selector(getUpdate), keyEquivalent: "")
     private let isPanelVisible: () -> Bool
+    private let areRemindersOpen: () -> Bool
     private let onToggle: () -> Void
+    private let onToggleReminders: () -> Void
     private let onSettings: () -> Void
     private let updateChecker: UpdateChecker
 
     init(
         isPanelVisible: @escaping () -> Bool,
+        areRemindersOpen: @escaping () -> Bool,
         onToggle: @escaping () -> Void,
+        onToggleReminders: @escaping () -> Void,
         onSettings: @escaping () -> Void,
         updateChecker: UpdateChecker
     ) {
         self.isPanelVisible = isPanelVisible
+        self.areRemindersOpen = areRemindersOpen
         self.onToggle = onToggle
+        self.onToggleReminders = onToggleReminders
         self.onSettings = onSettings
         self.updateChecker = updateChecker
         super.init()
@@ -33,6 +40,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(updateItem)
         toggleItem.target = self
         menu.addItem(toggleItem)
+        remindersItem.target = self
+        menu.addItem(remindersItem)
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -46,6 +55,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         toggleItem.title = isPanelVisible() ? "Hide Sticky" : "Show Sticky"
+        remindersItem.title = areRemindersOpen() ? "Hide Reminders" : "Show Reminders"
         if case .available(let info) = updateChecker.status {
             updateItem.title = "Update Available: v\(info.version)…"
             updateItem.isHidden = false
@@ -55,6 +65,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func toggle() { onToggle() }
+    @objc private func toggleReminders() { onToggleReminders() }
     @objc private func openSettings() { onSettings() }
     @objc private func checkForUpdates() { UpdateActions.checkFromMenu(updateChecker) }
 

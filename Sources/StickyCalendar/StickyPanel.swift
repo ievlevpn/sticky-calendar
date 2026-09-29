@@ -2,88 +2,60 @@ import AppKit
 import StickyCalendarCore
 import SwiftUI
 
-/// The sticky window. Pinned (default): above other windows, on every Space and over
-/// full-screen apps. Unpinned (⌃S or the header pin): an ordinary window. Never activates
-/// the app when clicked; remembers its frame.
+/// The calendar sticky: timeline, note and (as a tab) reminders. Pinned by default
+/// (⌃S or the header pin toggles it).
 @MainActor
-final class StickyPanel: NSPanel, NSWindowDelegate {
-    private static let autosaveName = "StickyPanel"
+final class StickyPanel: FloatingPanel {
     private let store: CalendarStore
     private let settings: AppSettings
     private let notepad: Notepad
     private let noteEditor: NoteEditorController
+    private let reminderStore: ReminderStore
+    private let reminderSettings: ReminderSettings
     private let onSettings: () -> Void
     private var keyMonitor: Any?
 
-    init(store: CalendarStore, settings: AppSettings, notepad: Notepad, onSettings: @escaping () -> Void) {
+    init(store: CalendarStore, settings: AppSettings, notepad: Notepad,
+         reminderStore: ReminderStore, reminderSettings: ReminderSettings,
+         onToggleReminders: @escaping () -> Void, onSettings: @escaping () -> Void) {
         self.store = store
         self.settings = settings
         self.notepad = notepad
+        self.reminderStore = reminderStore
+        self.reminderSettings = reminderSettings
         noteEditor = NoteEditorController(notepad: notepad)
         self.onSettings = onSettings
-        super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 280, height: 520),
-            styleMask: [.titled, .resizable, .fullSizeContentView, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        hidesOnDeactivate = false
-        titleVisibility = .hidden
-        titlebarAppearsTransparent = true
-        isMovableByWindowBackground = false // dragging on the timeline edits events
-        backgroundColor = .clear
-        isOpaque = false
-        minSize = Self.minimumSize
-        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            standardWindowButton(button)?.isHidden = true
-        }
-
-        applyPinned()
-        let hosting = NSHostingView(rootView: StickyContentView(
+        super.init(autosaveName: "StickyPanel", size: NSSize(width: 280, height: 520),
+                   minSize: Self.minimumSize, isPinned: { settings.isPinned })
+        setContent(StickyContentView(
             store: store,
             settings: settings,
             notepad: notepad,
             noteEditor: noteEditor,
+            reminderStore: reminderStore,
+            reminderSettings: reminderSettings,
+            onToggleReminders: onToggleReminders,
             onTogglePin: { [weak self] in self?.togglePinned() },
             onToggleCompact: { [weak self] in self?.toggleCompact() },
             onSettings: onSettings
         ))
-        hosting.sizingOptions = [] // let the user resize freely
-        // Our header replaces the (transparent) title bar. Without this, SwiftUI treats the
-        // title-bar strip as a safe area and extends the timeline's scroll view up under the
-        // header, where it draws over the header and swallows clicks on its buttons.
-        hosting.safeAreaRegions = []
-        contentView = hosting
-        delegate = self
-
-        if !setFrameUsingName(Self.autosaveName) { placeTopRight() }
-        setFrameAutosaveName(Self.autosaveName)
         if settings.isCompact { applyCompactSize(animate: false) }
         installKeyMonitor()
     }
 
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
-
-    /// A click outside the note ends note editing, so the timeline's keys (⌫, arrows, ⌘Z)
-    /// act on events again rather than on the note's text.
-    override func sendEvent(_ event: NSEvent) {
-        if event.type == .leftMouseDown,
-           let editor = firstResponder as? NSTextView,
-           let hit = contentView?.superview?.hitTest(event.locationInWindow),
-           !hit.isDescendant(of: editor.enclosingScrollView ?? editor) {
-            makeFirstResponder(nil)
-        }
-        super.sendEvent(event)
+    /// Showing the Reminders tab instead of the timeline.
+    private var showsReminders: Bool {
+        reminderSettings.placement == .tab && reminderSettings.isVisible && !settings.isCompact
     }
 
-    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { store.undoManager }
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? {
+        showsReminders ? reminderStore.undoManager : store.undoManager
+    }
 
     /// Picks up changes made while we were in the background (e.g. access granted in Settings).
-    /// An unpinned panel is raised explicitly, since clicking it doesn't activate the app.
-    func windowDidBecomeKey(_ notification: Notification) {
+    override func windowDidBecomeKey(_ notification: Notification) {
+        super.windowDidBecomeKey(notification)
         store.reload()
-        if !settings.isPinned { orderFrontRegardless() }
     }
 
     func togglePinned() {
@@ -115,24 +87,6 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
         resize(toHeight: Self.compactHeight, animate: animate)
     }
 
-    /// Keeps the top edge where it is, as a window does when its content changes height.
-    private func resize(toHeight height: CGFloat, animate: Bool) {
-        var rect = frame
-        rect.origin.y += rect.height - height
-        rect.size.height = height
-        setFrame(rect, display: true, animate: animate)
-    }
-
-    private func applyPinned() {
-        isFloatingPanel = settings.isPinned
-        level = settings.isPinned ? .floating : .normal
-        collectionBehavior = settings.isPinned ? [.canJoinAllSpaces, .fullScreenAuxiliary] : [.managed]
-    }
-
-    private func placeTopRight() {
-        guard let visible = NSScreen.main?.visibleFrame else { return }
-        setFrameOrigin(NSPoint(x: visible.maxX - frame.width - 20, y: visible.maxY - frame.height - 20))
-    }
 
     /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning,
     /// ⌘O opens Calendar, ←/→ change day, ↑/↓ move the selection (or scroll), Page Up/Down
@@ -176,6 +130,16 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
             break
         }
         guard !(firstResponder is NSTextView) else { return false }
+        // The Reminders tab has its own undo; the timeline's keys don't apply to it.
+        if showsReminders {
+            switch (flags, key) {
+            case ([.command], "z"): reminderStore.undoManager.undo()
+            case ([.command, .shift], "z"): reminderStore.undoManager.redo()
+            case ([.control], "s"): togglePinned()
+            default: return false
+            }
+            return true
+        }
         switch (keyCode, flags, key) {
         case (51, [], _), (117, [], _): // delete, forward delete
             store.requestDeleteSelected()

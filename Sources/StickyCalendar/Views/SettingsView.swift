@@ -7,6 +7,10 @@ struct SettingsView: View {
     let settings: AppSettings
     let notepad: Notepad
     let hotKey: GlobalHotKey
+    let reminderStore: ReminderStore
+    let reminderSettings: ReminderSettings
+    let remindersHotKey: GlobalHotKey
+    let onReminderPlacement: (ReminderPlacement) -> Void
     let updateChecker: UpdateChecker
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -65,18 +69,63 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Reminders") {
+                Picker("Show reminders", selection: Binding(get: { reminderSettings.placement }, set: onReminderPlacement)) {
+                    Text("In their own sticky").tag(ReminderPlacement.window)
+                    Text("As a tab in this sticky").tag(ReminderPlacement.tab)
+                }
+                Picker("List", selection: Binding(get: { reminderSettings.mode }, set: reminderSettings.setMode)) {
+                    Text("Today and overdue").tag(ReminderMode.today)
+                    Text("Whole lists").tag(ReminderMode.lists)
+                }
+                Toggle("Show reminders completed today", isOn: Binding(
+                    get: { reminderSettings.showsCompleted }, set: reminderSettings.setShowsCompleted
+                ))
+                if reminderStore.access == .granted {
+                    ForEach(reminderStore.lists) { list in
+                        Toggle(isOn: Binding(
+                            get: { !reminderSettings.hiddenListIDs.contains(list.id) },
+                            set: { reminderSettings.setList(list.id, visible: $0) }
+                        )) {
+                            HStack(spacing: 6) {
+                                Circle().fill(Color(rgba: list.color)).frame(width: 9, height: 9)
+                                Text(list.title)
+                            }
+                        }
+                    }
+                } else {
+                    Text("Lists appear here once Sticky Calendar may read your reminders.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("Shortcuts") {
                 Picker("Show or hide the sticky", selection: Binding(
                     get: { settings.globalHotKey },
                     set: { choice in
                         settings.setGlobalHotKey(choice)
-                        hotKey.apply(choice)
+                        hotKey.apply(choice.carbonKey)
                     }
                 )) {
                     ForEach(GlobalHotKeyChoice.allCases, id: \.self) { Text($0.symbol).tag($0) }
                 }
                 if hotKey.failed {
                     Text("Another app already uses \(settings.globalHotKey.symbol). Choose another shortcut.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                Picker("Show or hide reminders", selection: Binding(
+                    get: { reminderSettings.hotKey },
+                    set: { choice in
+                        reminderSettings.setHotKey(choice)
+                        remindersHotKey.apply(choice.carbonKey)
+                    }
+                )) {
+                    ForEach(RemindersHotKeyChoice.allCases, id: \.self) { Text($0.symbol).tag($0) }
+                }
+                if remindersHotKey.failed {
+                    Text("Another app already uses \(reminderSettings.hotKey.symbol). Choose another shortcut.")
                         .font(.caption)
                         .foregroundStyle(.red)
                 } else {

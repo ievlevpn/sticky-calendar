@@ -8,9 +8,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let notepad = Notepad()
     private let source = EventKitSource()
     private lazy var store = CalendarStore(source: source, settings: settings)
+    private let reminderSettings = ReminderSettings()
+    private let reminderSource = ReminderKitSource()
+    private lazy var reminderStore = ReminderStore(source: reminderSource, settings: reminderSettings)
+    private var remindersPanel: RemindersPanel?
     private let updateChecker = UpdateChecker(currentVersion: AppVersion.short)
     private var updateTimer: Timer?
     private lazy var hotKey = GlobalHotKey { [weak self] in self?.toggleFromHotKey() }
+    private lazy var remindersHotKey = GlobalHotKey { [weak self] in self?.toggleRemindersFromHotKey() }
     private var panel: StickyPanel?
     private var statusItem: StatusItemController?
     private var settingsWindow: NSWindow?
@@ -21,17 +26,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let panel = StickyPanel(
             store: store, settings: settings, notepad: notepad,
+            reminderStore: reminderStore, reminderSettings: reminderSettings,
+            onToggleReminders: { [weak self] in self?.toggleReminders() },
             onSettings: { [weak self] in self?.showSettings() }
         )
         self.panel = panel
         statusItem = StatusItemController(
             isPanelVisible: { [weak panel] in panel?.isVisible ?? false },
+            areRemindersOpen: { [weak self] in self?.reminderSettings.isVisible ?? false },
             onToggle: { [weak self] in self?.togglePanel() },
+            onToggleReminders: { [weak self] in self?.toggleReminders() },
             onSettings: { [weak self] in self?.showSettings() },
             updateChecker: updateChecker
         )
         panel.orderFrontRegardless()
-        hotKey.apply(settings.globalHotKey)
+        if reminderSettings.placement == .window, reminderSettings.isVisible { showRemindersWindow() }
+        hotKey.apply(settings.globalHotKey.carbonKey)
+        remindersHotKey.apply(reminderSettings.hotKey.carbonKey)
 
         observeClock()
         Task { await store.requestAccessIfNeeded() }
@@ -59,6 +70,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: Reminders
+
+    /// The header button and menu item: opens or closes the reminders window, or switches
+    /// the calendar sticky to its Reminders tab and back.
+    private func toggleReminders() {
+        switch reminderSettings.placement {
+        case .window:
+            if reminderSettings.isVisible { hideRemindersWindow() } else { showRemindersWindow() }
+        case .tab:
+            if settings.isCompact { panel?.toggleCompact() }
+            reminderSettings.setVisible(!reminderSettings.isVisible)
+            panel?.orderFrontRegardless()
+        }
+    }
+
+    /// The reminders' global shortcut: like the sticky's, shows and focuses them, or hides
+    /// them when they already have focus.
+    private func toggleRemindersFromHotKey() {
+        switch reminderSettings.placement {
+        case .window:
+            if let window = remindersPanel, window.isVisible, window.isKeyWindow {
+                hideRemindersWindow()
+            } else {
+                showRemindersWindow()
+                remindersPanel?.makeKey()
+            }
+        case .tab:
+            guard let panel else { return }
+            let showing = reminderSettings.isVisible && panel.isVisible && panel.isKeyWindow
+            if showing {
+                reminderSettings.setVisible(false)
+            } else {
+                if settings.isCompact { panel.toggleCompact() }
+                reminderSettings.setVisible(true)
+                panel.orderFrontRegardless()
+                panel.makeKey()
+            }
+        }
+    }
+
+    private func showRemindersWindow() {
+        if remindersPanel == nil {
+            remindersPanel = RemindersPanel(
+                store: reminderStore, settings: reminderSettings, appSettings: settings, beside: panel,
+                onSettings: { [weak self] in self?.showSettings() },
+                onClose: { [weak self] in self?.hideRemindersWindow() }
+            )
+        }
+        reminderSettings.setVisible(true)
+        remindersPanel?.orderFrontRegardless()
+    }
+
+    private func hideRemindersWindow() {
+        reminderSettings.setVisible(false)
+        remindersPanel?.orderOut(nil)
+    }
+
+    /// Settings → Reminders: a new placement starts closed, and the other one's window goes.
+    private func setReminderPlacement(_ placement: ReminderPlacement) {
+        guard placement != reminderSettings.placement else { return }
+        hideRemindersWindow()
+        reminderSettings.setPlacement(placement)
+    }
+
     private func togglePanel() {
         guard let panel else { return }
         if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
@@ -68,7 +143,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settingsWindow == nil {
             let window = NSWindow(contentViewController: NSHostingController(
                 rootView: SettingsView(
-                    store: store, settings: settings, notepad: notepad, hotKey: hotKey, updateChecker: updateChecker
+                    store: store, settings: settings, notepad: notepad, hotKey: hotKey,
+                    reminderStore: reminderStore, reminderSettings: reminderSettings, remindersHotKey: remindersHotKey,
+                    onReminderPlacement: { [weak self] in self?.setReminderPlacement($0) },
+                    updateChecker: updateChecker
                 )
             ))
             window.title = "Sticky Calendar Settings"
@@ -83,7 +161,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func observeClock() {
         let onClockChange: @Sendable (Notification) -> Void = { [weak self] _ in
-            MainActor.assumeIsolated { self?.store.handleClockChange() }
+            MainActor.assumeIsolated {
+                self?.store.handleClockChange()
+                self?.reminderStore.handleDayChange()
+            }
         }
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: .NSCalendarDayChanged, object: nil, queue: .main, using: onClockChange))
