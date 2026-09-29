@@ -27,8 +27,9 @@ Events with a Zoom, Meet, Teams, Webex or Jitsi link get a camera button that jo
 The checklist button shows your reminders from Apple Reminders, Todoist, TickTick or the
 tasks in an Obsidian vault, either as a tab of this sticky (the default) or in their own
 sticky; the first time, it asks which source and where (Settings → Reminders changes both).
-Switch between Today (overdue and due today) and whole lists. Tick, add, rename and delete
-them there; a date typed into a new one ("Call Sam tomorrow 10am") becomes its due
+Switch between Today (overdue and due today) and whole lists. Tick and add them there;
+click one to change its date and time, importance (!, !!, !!!) and notes; ⌘F searches all
+of them loosely ("clbnk" finds "Call the bank"); a date typed into a new one ("Call Sam tomorrow 10am") becomes its due
 date. ⌃⌥R shows or hides them from any app.
 The note button opens a note under the timeline (or in its own sticky, Settings → Note)
 for quick, disposable thoughts — one per day by default, following the date arrows like a
