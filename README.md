@@ -18,7 +18,8 @@ Scroll through the day (48 pt per hour — a taller window shows more hours); th
 ruler marks the current time and the clock button jumps back to it.
 Drag to create, move and resize events; double-click to edit; ⌫ to delete; ⌘Z to undo;
 ⌃S (or the pin button) toggles whether the sticky stays on top of other windows;
-⌘O (or the calendar button) opens Calendar, optionally on the day you're viewing.
+⌘O (or the calendar button) opens Calendar, optionally on the day you're viewing;
+⌘, (or the gear button) opens Settings.
 The note button opens a scratch note under the timeline for quick, disposable thoughts:
 Markdown renders as you type, Obsidian-style — only the line you're editing shows its
 syntax, and task boxes tick with a click; LaTeX math (`$…$`, `$$…$$`) is typeset too.

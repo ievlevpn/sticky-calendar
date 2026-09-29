@@ -18,7 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = Self.makeMainMenu()
 
-        let panel = StickyPanel(store: store, settings: settings, notepad: notepad)
+        let panel = StickyPanel(
+            store: store, settings: settings, notepad: notepad,
+            onSettings: { [weak self] in self?.showSettings() }
+        )
         self.panel = panel
         statusItem = StatusItemController(
             isPanelVisible: { [weak panel] in panel?.isVisible ?? false },

@@ -12,13 +12,15 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
     private let settings: AppSettings
     private let notepad: Notepad
     private let noteEditor: NoteEditorController
+    private let onSettings: () -> Void
     private var keyMonitor: Any?
 
-    init(store: CalendarStore, settings: AppSettings, notepad: Notepad) {
+    init(store: CalendarStore, settings: AppSettings, notepad: Notepad, onSettings: @escaping () -> Void) {
         self.store = store
         self.settings = settings
         self.notepad = notepad
         noteEditor = NoteEditorController(notepad: notepad)
+        self.onSettings = onSettings
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 280, height: 520),
             styleMask: [.titled, .resizable, .fullSizeContentView, .nonactivatingPanel],
@@ -42,7 +44,8 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
             settings: settings,
             notepad: notepad,
             noteEditor: noteEditor,
-            onTogglePin: { [weak self] in self?.togglePinned() }
+            onTogglePin: { [weak self] in self?.togglePinned() },
+            onSettings: onSettings
         ))
         hosting.sizingOptions = [] // let the user resize freely
         // Our header replaces the (transparent) title bar. Without this, SwiftUI treats the
@@ -100,7 +103,7 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
     /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning,
     /// ⌘O opens Calendar, ←/→ change day, ↑/↓ move the selection (or scroll), Page Up/Down
     /// scroll, Return edits the selection, Esc deselects —
-    /// unless a text field is editing.
+    /// unless a text field is editing. ⌘, opens Settings, even from the note.
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let keyCode = event.keyCode
@@ -115,7 +118,12 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
     }
 
     private func handleKey(keyCode: UInt16, flags: NSEvent.ModifierFlags, key: String?, window: ObjectIdentifier?) -> Bool {
-        guard window == ObjectIdentifier(self), !(firstResponder is NSTextView) else { return false }
+        guard window == ObjectIdentifier(self) else { return false }
+        if flags == [.command], key == "," {
+            onSettings()
+            return true
+        }
+        guard !(firstResponder is NSTextView) else { return false }
         // Arrow, page and forward-delete keys carry these flags even with no modifier held.
         let flags = flags.subtracting([.numericPad, .function])
         switch (keyCode, flags, key) {

@@ -9,6 +9,7 @@ struct StickyContentView: View {
     let notepad: Notepad
     let noteEditor: NoteEditorController
     let onTogglePin: () -> Void
+    let onSettings: () -> Void
 
     @State private var contentHeight: CGFloat = 0
     /// Header plus the least timeline worth keeping when the note grows.
@@ -19,7 +20,7 @@ struct StickyContentView: View {
             HeaderView(
                 store: store, settings: settings,
                 isNoteVisible: notepad.isVisible, onToggleNote: toggleNote,
-                onTogglePin: onTogglePin
+                onTogglePin: onTogglePin, onSettings: onSettings
             )
             switch store.access {
             case .granted:

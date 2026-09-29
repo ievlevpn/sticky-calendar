@@ -7,6 +7,7 @@ struct HeaderView: View {
     let isNoteVisible: Bool
     let onToggleNote: () -> Void
     let onTogglePin: () -> Void
+    let onSettings: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
@@ -39,6 +40,9 @@ struct HeaderView: View {
             }
             .buttonStyle(.borderless)
             .help(settings.isPinned ? "Unpin: behave like a normal window (⌃S)" : "Pin: keep on top of other windows (⌃S)")
+            Button(action: onSettings) { Image(systemName: "gearshape") }
+                .buttonStyle(.borderless)
+                .help("Settings (⌘,)")
         }
         .padding(.horizontal, 12)
         .frame(height: 32)
