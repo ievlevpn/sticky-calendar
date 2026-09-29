@@ -2,7 +2,7 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
-## Unreleased
+## 0.11.0 — 2026-09-29
 
 ### Changed
 - **A tidier header**: it shows just the date and day arrows. Hover the ••• button and the rest (Reminders, Note, Pin, Refresh, Open in Calendar, Compact, Settings) unfurl in a capsule, with a label naming each one and its shortcut; click ••• to keep it open.
