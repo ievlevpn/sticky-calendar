@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## Unreleased
+
+### Fixed
+- **Checking for updates** failed with "Couldn't check for updates" when GitHub's API was busy (it allows 60 anonymous requests an hour per network, shared by every app on it). The app now falls back to GitHub's website, retries a failed check within the hour instead of the next day, and says what happened.
+
 ## 0.10.0 — 2026-09-29
 
 ### Added

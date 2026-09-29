@@ -41,6 +41,13 @@ struct ReleaseParserTests {
         #expect(info?.pageURL.absoluteString == page)
     }
 
+    @Test func readsTheTagFromTheReleasePageAddress() {
+        let page = URL(string: "https://github.com/ievlevpn/sticky-calendar/releases/tag/v0.10.0")!
+        #expect(ReleaseParser.tag(fromReleasePage: page) == "v0.10.0")
+        #expect(ReleaseParser.tag(fromReleasePage: URL(string: "https://github.com/ievlevpn/sticky-calendar/releases")!) == nil)
+        #expect(ReleaseParser.tag(fromReleasePage: URL(string: "https://github.com/x/y/releases/tag/nightly")!) == nil)
+    }
+
     @Test func anythingElseIsNil() {
         #expect(ReleaseParser.parse(statusCode: 404, body: body(#"{"message":"Not Found"}"#)) == nil)
         #expect(ReleaseParser.parse(statusCode: 403, body: body(#"{"message":"rate limit"}"#)) == nil)
@@ -135,12 +142,18 @@ struct UpdateCheckerTests {
         #expect(fetcher.calls == 2)
     }
 
-    @Test func failedAttemptsAlsoWaitADay() async {
-        let fetcher = FakeFetcher(status: 404)
-        let c = checker("1.2.0", fetcher, now: { clock })
+    @Test func failedAttemptsAreRetriedWithinTheHour() async {
+        var now = clock
+        let fetcher = FakeFetcher(status: 403)                 // e.g. GitHub's rate limit
+        let c = checker("1.2.0", fetcher, now: { now })
         await c.checkIfDue()
+        now += 30 * 60
         await c.checkIfDue()
-        #expect(fetcher.calls == 1)
+        #expect(fetcher.calls == 1)                            // not hammering
+        now += 31 * 60
+        await c.checkIfDue()
+        #expect(fetcher.calls == 2)                            // but not a whole day either
+        #expect(c.lastCheck == nil)                            // nothing was learned
     }
 
     @Test func disabledAutomaticChecksPersistAndSkip() async {
@@ -187,7 +200,7 @@ struct UpdateSummaryTests {
 
         let offline = checker("1.2.0", FakeFetcher(status: 404))
         await offline.checkNow()
-        #expect(offline.summary == "Couldn't check for updates.")
+        #expect(offline.summary == "Couldn't reach GitHub — will try again within the hour.")
 
         #expect(checker("0.0.0-dev", FakeFetcher(tag: "v1.3.0")).summary == "Development build — update checks are off.")
     }
