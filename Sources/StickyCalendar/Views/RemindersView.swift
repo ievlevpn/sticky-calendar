@@ -163,11 +163,12 @@ struct RemindersView: View {
     private var addBar: some View {
         HStack(spacing: 6) {
             Image(systemName: "plus.circle.fill").foregroundStyle(.secondary)
-            TextField("New reminder, e.g. “Call Sam tomorrow 10am”", text: $newText)
+            TextField("New reminder", text: $newText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12 * zoom))
                 .focused($focus, equals: .add)
                 .onSubmit(add)
+                .help("Type a reminder and press Return. A date in it becomes the due date: “Call Sam tomorrow 10am”.")
             if settings.mode == .lists, store.visibleLists.filter(\.isWritable).count > 1 {
                 Menu {
                     ForEach(store.visibleLists.filter(\.isWritable)) { list in
