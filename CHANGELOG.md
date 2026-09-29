@@ -2,6 +2,19 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## Unreleased
+
+### Added
+- A **refresh button** and **⌘R** for the calendar and for reminders; Apple Calendar and Reminders also sync with their servers first.
+
+### Changed
+- Reminders now open **as a tab** of the calendar sticky by default. The first time you open them, Sticky Calendar asks whether to keep them there or give them their own sticky.
+- The Reminders/Calendar button is now the header's **last button** in both modes, so it stays in the same place when you switch.
+- The sticky opens **wide enough** for the whole header; a window saved narrower by an earlier version is widened once (you can still make it narrower).
+
+### Fixed
+- The timeline's **00:00 and 24:00** labels were cut off when scrolled to the very top or bottom; both ends now have room to breathe.
+
 ## 0.7.0 — 2026-09-29
 
 ### Added
