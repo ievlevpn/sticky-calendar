@@ -14,7 +14,7 @@ final class NotesPanel: FloatingPanel {
     private var keyMonitor: Any?
 
     init(notepad: Notepad, appSettings: AppSettings, beside neighbour: NSWindow?,
-         onSettings: @escaping () -> Void, onClose: @escaping () -> Void) {
+         onSettings: @escaping () -> Void, onClose: @escaping () -> Void, onAttach: @escaping () -> Void) {
         self.notepad = notepad
         self.appSettings = appSettings
         editor = NoteEditorController(notepad: notepad)
@@ -25,6 +25,7 @@ final class NotesPanel: FloatingPanel {
         setContent(NoteWindowContent(
             notepad: notepad, editor: editor, appSettings: appSettings,
             onTogglePin: { [weak self] in self?.togglePinned() },
+            onAttach: onAttach,
             onSettings: onSettings
         ), defaultPlacement: { panel in
             guard let neighbour else { return panel.placeTopRight() }
@@ -71,6 +72,8 @@ struct NoteWindowContent: View {
     let editor: NoteEditorController
     let appSettings: AppSettings
     let onTogglePin: () -> Void
+    /// Puts the note back under the timeline.
+    let onAttach: () -> Void
     let onSettings: () -> Void
 
     var body: some View {
@@ -78,6 +81,9 @@ struct NoteWindowContent: View {
             HStack(spacing: 8) {
                 NoteTitle(notepad: notepad, size: 13)
                 Spacer(minLength: 8)
+                Button(action: onAttach) { Image(systemName: "arrow.down.left.square") }
+                    .buttonStyle(.borderless)
+                    .help("Put the note back under the timeline")
                 Button("Clear") { editor.clear() }
                     .buttonStyle(.borderless)
                     .font(.system(size: 11))

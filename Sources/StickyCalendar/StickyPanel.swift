@@ -18,6 +18,7 @@ final class StickyPanel: FloatingPanel {
     init(store: CalendarStore, settings: AppSettings, notepad: Notepad,
          reminderStore: ReminderStore, reminderSettings: ReminderSettings,
          onToggleReminders: @escaping () -> Void, onToggleNoteWindow: @escaping () -> Void,
+         onMoveNote: @escaping (NotePlacement) -> Void,
          onChooseReminderPlacement: @escaping (ReminderPlacement) -> Void,
          onSettings: @escaping () -> Void) {
         self.store = store
@@ -38,6 +39,7 @@ final class StickyPanel: FloatingPanel {
             reminderSettings: reminderSettings,
             onToggleReminders: onToggleReminders,
             onToggleNoteWindow: onToggleNoteWindow,
+            onMoveNote: onMoveNote,
             onChooseReminderPlacement: onChooseReminderPlacement,
             onTogglePin: { [weak self] in self?.togglePinned() },
             onToggleCompact: { [weak self] in self?.toggleCompact() },

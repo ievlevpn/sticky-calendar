@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             reminderStore: reminderStore, reminderSettings: reminderSettings,
             onToggleReminders: { [weak self] in self?.toggleReminders() },
             onToggleNoteWindow: { [weak self] in self?.toggleNoteWindow() },
+            onMoveNote: { [weak self] in self?.moveNote(to: $0) },
             onChooseReminderPlacement: { [weak self] in self?.chooseReminderPlacement($0) },
             onSettings: { [weak self] in self?.showSettings() }
         )
@@ -88,7 +89,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             notesPanel = NotesPanel(
                 notepad: notepad, appSettings: settings, beside: panel,
                 onSettings: { [weak self] in self?.showSettings() },
-                onClose: { [weak self] in self?.hideNoteWindow() }
+                onClose: { [weak self] in self?.hideNoteWindow() },
+                onAttach: { [weak self] in self?.moveNote(to: .pane) }
             )
         }
         notepad.setVisible(true)
@@ -102,6 +104,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func hideNoteWindow() {
         notepad.setVisible(false)
         notesPanel?.orderOut(nil)
+    }
+
+    /// The note bar's and note window's move buttons: same as Settings, but the note stays open.
+    private func moveNote(to placement: NotePlacement) {
+        setNotePlacement(placement)
+        switch placement {
+        case .window:
+            showNoteWindow(focus: true)
+        case .pane:
+            notepad.setVisible(true)
+            panel?.orderFrontRegardless()
+        }
     }
 
     /// Settings → Note: moving the note closes it where it was.

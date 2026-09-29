@@ -9,6 +9,8 @@ struct NotePane: View {
     let zoom: CGFloat
     /// The most the window can give the note while leaving the timeline usable.
     let maxHeight: CGFloat
+    /// Moves the note into its own sticky.
+    let onDetach: () -> Void
 
     @State private var dragStartHeight: CGFloat?
 
@@ -27,6 +29,10 @@ struct NotePane: View {
             Spacer(minLength: 8)
             Capsule().fill(.tertiary).frame(width: 28, height: 3)
             Spacer(minLength: 8)
+            Button(action: onDetach) { Image(systemName: "arrow.up.right.square") }
+                .buttonStyle(.borderless)
+                .font(.system(size: 11))
+                .help("Move the note into its own sticky")
             Button("Clear") { editor.clear() }
                 .buttonStyle(.borderless)
                 .font(.system(size: 10))

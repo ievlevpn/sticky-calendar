@@ -13,6 +13,8 @@ struct StickyContentView: View {
     let onToggleReminders: () -> Void
     /// Opens or closes the note's own sticky (when the note has one).
     let onToggleNoteWindow: () -> Void
+    /// Moves the note between under the timeline and its own sticky, keeping it open.
+    let onMoveNote: (NotePlacement) -> Void
     let onChooseReminderPlacement: (ReminderPlacement) -> Void
     let onTogglePin: () -> Void
     let onToggleCompact: () -> Void
@@ -89,7 +91,8 @@ struct StickyContentView: View {
             AccessDeniedView()
         }
         if notepad.placement == .pane, notepad.isVisible {
-            NotePane(notepad: notepad, editor: noteEditor, zoom: settings.zoom, maxHeight: contentHeight - reservedHeight)
+            NotePane(notepad: notepad, editor: noteEditor, zoom: settings.zoom, maxHeight: contentHeight - reservedHeight,
+                     onDetach: { onMoveNote(.window) })
         }
     }
 
