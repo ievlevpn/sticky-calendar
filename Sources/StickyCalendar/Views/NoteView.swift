@@ -391,7 +391,7 @@ final class NoteTextView: NSTextView {
         super.draw(dirtyRect)
         if string.isEmpty {
             let padding = textContainer?.lineFragmentPadding ?? 0
-            NSAttributedString(string: "Jot something down — Markdown works", attributes: [
+            NSAttributedString(string: "Jot something down…", attributes: [
                 .font: NoteStyle.font,
                 .foregroundColor: NSColor.placeholderTextColor,
             ]).draw(at: NSPoint(x: textContainerInset.width + padding, y: textContainerInset.height))

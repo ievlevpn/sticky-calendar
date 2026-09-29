@@ -21,7 +21,11 @@ Drag to create, move and resize events; double-click to edit; ⌫ to delete; ⌘
 ⌘O (or the calendar button) opens Calendar, optionally on the day you're viewing;
 ⌘, (or the gear button) opens Settings; ⌘= / ⌘- zoom the timeline and note, ⌘0 resets
 (also in Settings → Zoom).
-The note button opens a scratch note under the timeline for quick, disposable thoughts:
+Events with a Zoom, Meet, Teams or Webex link get a camera button that joins the call.
+⌘M (or double-clicking the header) collapses the sticky to just what's on now or next;
+⌃⌥S shows or hides it from any app (Settings → Shortcuts).
+The note button opens a note under the timeline for quick, disposable thoughts — one per
+day by default, following the date arrows like a journal (Settings → Note):
 Markdown renders as you type, Obsidian-style — only the line you're editing shows its
 syntax, and task boxes tick with a click; LaTeX math (`$…$`, `$$…$$`) is typeset too.
 Drag its bar to resize; **Clear** empties it (⌘Z brings it back).
