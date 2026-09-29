@@ -10,10 +10,14 @@ public enum CalendarJumpMode: String, Sendable, CaseIterable {
 
 /// AppleScript for Calendar.app. macOS has no public URL for "show this date".
 public enum CalendarScript {
-    /// Switches Calendar to Day view on `date`'s day (as `calendar` sees it). The day is set
-    /// to 1 before the month changes so e.g. "31st" + September can't roll into October.
+    /// Switches Calendar to Day view on `date`'s day in `calendar`'s time zone. The day is
+    /// set to 1 before the month changes so e.g. "31st" + September can't roll into October.
+    /// AppleScript dates are Gregorian, so the components are too, whatever the system
+    /// calendar (a Buddhist or Japanese one would otherwise give the wrong year).
     public static func showDay(_ date: Date, calendar: Calendar) -> String {
-        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        let parts = gregorian.dateComponents([.year, .month, .day], from: date)
         return """
         tell application "Calendar"
             activate

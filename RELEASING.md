@@ -13,6 +13,10 @@ The `Release` workflow tests, builds a universal DMG signed with the self-signed
 certificate, verifies it, and creates the GitHub release `v1.2.3` with
 `StickyCalendar-1.2.3.dmg` attached. The build number is the commit count.
 
+Tags must be `vX.Y.Z` (a release) or `vX.Y.Z-suffix`, e.g. `v1.3.0-beta.1` (published as a
+GitHub pre-release: never "Latest", never offered by the app's update check, never pushed
+to Homebrew). Any other tag fails the workflow before anything is built.
+
 To build the same DMG locally: `./scripts/build-dmg.sh 1.2.3` (then
 `./scripts/verify-dmg.sh build/StickyCalendar-1.2.3.dmg 1.2.3`).
 
@@ -35,6 +39,10 @@ see "First launch" below.)
 3. Back up `~/.sticky-calendar-signing` somewhere private (e.g. a password manager).
    Losing it means the next release is signed differently and every user is asked for
    Calendar access again.
+4. Releases are pinned to this exact certificate: `RELEASE_CERT_SHA1` in
+   `scripts/lib/signing.sh` holds its SHA-1, and release builds and `verify-dmg.sh` refuse
+   anything else, even a certificate with the same name. Only change it on purpose (the
+   script prints the new value when it creates a certificate).
 
 ## Going public
 

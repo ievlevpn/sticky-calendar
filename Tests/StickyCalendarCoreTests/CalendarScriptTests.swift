@@ -33,4 +33,14 @@ struct CalendarScriptTests {
         let lines = script.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
         #expect(lines.filter { $0 == "set day of d to 1" }.count == 2) // overflow guard + the real day
     }
+
+    @Test func usesGregorianYearsWhateverTheSystemCalendar() {
+        // AppleScript dates are Gregorian; a Buddhist system calendar says 2569 for 2026.
+        var buddhist = Calendar(identifier: .buddhist)
+        buddhist.timeZone = TimeZone(identifier: "UTC")!
+        let script = CalendarScript.showDay(at(12, day: 30), calendar: buddhist)
+        #expect(script.contains("set year of d to 2026"))
+        #expect(script.contains("set month of d to 9"))
+        #expect(script.contains("set day of d to 30"))
+    }
 }

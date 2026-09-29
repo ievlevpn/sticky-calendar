@@ -49,5 +49,7 @@ printf '%s' "$PASSWORD" > "$OUT/signing-cert.password"
 chmod 600 "$OUT"/signing-cert.*
 
 echo "Created \"$NAME\" and imported it into $KEYCHAIN."
+echo "Its SHA-1 is $(signing_hash "$NAME" "$KEYCHAIN"): set RELEASE_CERT_SHA1 in scripts/lib/signing.sh to it."
+echo "(A new certificate makes macOS ask existing users for Calendar access again.)"
 echo "The first build that uses it may ask to use the key: choose \"Always Allow\"."
 echo "GitHub secrets are in $OUT (see RELEASING.md)."

@@ -5,7 +5,7 @@
 #   --universal       Apple Silicon + Intel (default: this Mac's architecture only)
 #   --sign NAME       code-signing identity (default "Sticky Calendar Self-Signed");
 #                     without it, falls back to ad-hoc signing unless --require-sign
-#   --require-sign    fail instead of falling back to ad-hoc signing (releases)
+#   --require-sign    sign with the pinned release certificate or fail (releases)
 #   --install         also copy the app to ~/Applications
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -28,15 +28,22 @@ while [[ $# -gt 0 ]]; do
 done
 BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo 0)"
 
-HASH="$(signing_hash "$IDENTITY")"
-if [[ -z "$HASH" && $REQUIRE_SIGN == 1 ]]; then
-    echo "error: signing identity \"$IDENTITY\" not found in the keychain" >&2
-    exit 1
+if [[ $REQUIRE_SIGN == 1 ]]; then
+    if ! has_release_cert; then
+        echo "error: the release certificate $RELEASE_CERT_SHA1 (\"$IDENTITY\") is not in the keychain" >&2
+        exit 1
+    fi
+    HASH="$RELEASE_CERT_SHA1"
+else
+    HASH="$(signing_hash "$IDENTITY")"
 fi
 
 # Without Xcode, SwiftPM can't build several architectures at once: build each and merge.
+# `set -e` doesn't apply inside $(...), so a failed compile must return explicitly, and the
+# caller must assign the result (a failing substitution in a plain argument is ignored) —
+# otherwise a stale binary from an earlier build would be shipped.
 binary_for() {
-    swift build -c release --product StickyCalendar --triple "$1" >&2
+    swift build -c release --product StickyCalendar --triple "$1" >&2 || return 1
     echo "$(swift build -c release --triple "$1" --show-bin-path)/StickyCalendar"
 }
 
@@ -44,8 +51,9 @@ APP=build/StickyCalendar.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 if [[ $UNIVERSAL == 1 ]]; then
-    lipo -create "$(binary_for arm64-apple-macosx14.0)" "$(binary_for x86_64-apple-macosx14.0)" \
-        -output "$APP/Contents/MacOS/StickyCalendar"
+    ARM64="$(binary_for arm64-apple-macosx14.0)"
+    X86_64="$(binary_for x86_64-apple-macosx14.0)"
+    lipo -create "$ARM64" "$X86_64" -output "$APP/Contents/MacOS/StickyCalendar"
 else
     swift build -c release --product StickyCalendar
     cp "$(swift build -c release --show-bin-path)/StickyCalendar" "$APP/Contents/MacOS/StickyCalendar"

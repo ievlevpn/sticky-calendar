@@ -18,7 +18,10 @@ jobs:
           fetch-depth: 0 # the build number is the commit count
 
       - name: Version from tag
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        run: |
+          KIND="$(./scripts/release-kind.sh "$GITHUB_REF_NAME")" # fails for malformed tags
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "PRERELEASE=$([[ $KIND == prerelease ]] && echo 1 || echo 0)" >> "$GITHUB_ENV"
 
       - name: Test
         run: ./scripts/test.sh
@@ -43,12 +46,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # A pre-release must never become "Latest" (that is what the app's update check reads).
+          FLAGS=()
+          [[ $PRERELEASE == 1 ]] && FLAGS=(--prerelease)
           gh release create "$GITHUB_REF_NAME" "build/StickyCalendar-$VERSION.dmg" \
-            --title "Sticky Calendar $VERSION" --generate-notes
+            --title "Sticky Calendar $VERSION" --generate-notes ${FLAGS[@]+"${FLAGS[@]}"}
 
       # Inactive until the repo is public and the TAP_TOKEN secret exists (see RELEASING.md).
+      # Pre-releases never go to Homebrew.
       - name: Update Homebrew cask
-        if: env.TAP_TOKEN != ''
+        if: env.TAP_TOKEN != '' && env.PRERELEASE == '0'
         run: |
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/ievlevpn/homebrew-tap.git" "$RUNNER_TEMP/tap"
           ./scripts/update-cask.sh "$VERSION" "$(cat "build/StickyCalendar-$VERSION.dmg.sha256")" \

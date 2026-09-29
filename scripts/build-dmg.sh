@@ -20,7 +20,11 @@ ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
 hdiutil create -volname "Sticky Calendar" -srcfolder "$STAGE" -format UDZO -fs HFS+ -ov "$DMG" >/dev/null
 
-HASH="$(signing_hash "$IDENTITY")"
+if [[ "${REQUIRE_SIGNING:-0}" == 1 ]]; then
+    HASH="$RELEASE_CERT_SHA1"
+else
+    HASH="$(signing_hash "$IDENTITY")"
+fi
 [[ -n "$HASH" ]] && codesign --force --timestamp=none --sign "$HASH" "$DMG"
 shasum -a 256 "$DMG" | awk '{ print $1 }' > "$DMG.sha256"
 echo "Built $DMG ($(du -h "$DMG" | cut -f1), sha256 $(cat "$DMG.sha256"))"
