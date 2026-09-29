@@ -7,7 +7,7 @@ cask "sticky-calendar" do
   desc "Floating, always-on-top timeline of the day's calendar"
   homepage "https://github.com/ievlevpn/sticky-calendar"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "StickyCalendar.app"
 
