@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## Unreleased
+
+### Added
+- An **About** window (top of the menu-bar menu, or About… in Settings) with the version, links to the website, what's new and reporting an issue, and credits.
+
 ## 0.10.1 — 2026-09-29
 
 ### Added
