@@ -10,6 +10,8 @@ struct EventEditPopover: View {
     let onFinish: (_ snapshot: EventItem, _ result: EventItem?) -> Void
     let onDelete: (() -> Void)?
     let onOpenInCalendar: (() -> Void)?
+    /// Put the cursor in the title (Return on a selected block, and always for new events).
+    let focusTitle: Bool
 
     @State private var item: EventItem
     /// Frozen at open; the view is rebuilt when the store reloads, but @State is not reset.
@@ -23,7 +25,8 @@ struct EventEditPopover: View {
         calendars: [CalendarInfo],
         onFinish: @escaping (_ snapshot: EventItem, _ result: EventItem?) -> Void,
         onDelete: (() -> Void)? = nil,
-        onOpenInCalendar: (() -> Void)? = nil
+        onOpenInCalendar: (() -> Void)? = nil,
+        focusTitle: Bool = false
     ) {
         _item = State(initialValue: item)
         _snapshot = State(initialValue: item)
@@ -31,6 +34,7 @@ struct EventEditPopover: View {
         self.onFinish = onFinish
         self.onDelete = onDelete
         self.onOpenInCalendar = onOpenInCalendar
+        self.focusTitle = focusTitle
     }
 
     var body: some View {
@@ -83,13 +87,20 @@ struct EventEditPopover: View {
             // The sticky never activates the app; typing in the popover needs it active,
             // or keystrokes go to the app in front.
             NSApp.activate()
-            titleFocused = item.isNew
+            titleFocused = item.isNew || focusTitle
         }
-        .onExitCommand {
-            cancelled = true
-            dismiss()
+        // A focused text field swallows Esc before .onExitCommand sees it; catch it first.
+        .onKeyPress(.escape) {
+            cancel()
+            return .handled
         }
+        .onExitCommand { cancel() }
         .onDisappear { onFinish(snapshot, cancelled ? nil : item) }
+    }
+
+    private func cancel() {
+        cancelled = true
+        dismiss()
     }
 
     private func optionalText(_ binding: Binding<String?>) -> Binding<String> {

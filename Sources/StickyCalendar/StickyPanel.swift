@@ -80,7 +80,8 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
     }
 
     /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning,
-    /// ⌘O opens Calendar —
+    /// ⌘O opens Calendar, ←/→ change day, ↑/↓ move the selection (or scroll), Page Up/Down
+    /// scroll, Return edits the selection, Esc deselects —
     /// unless a text field is editing.
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -97,9 +98,28 @@ final class StickyPanel: NSPanel, NSWindowDelegate {
 
     private func handleKey(keyCode: UInt16, flags: NSEvent.ModifierFlags, key: String?, window: ObjectIdentifier?) -> Bool {
         guard window == ObjectIdentifier(self), !(firstResponder is NSTextView) else { return false }
+        // Arrow, page and forward-delete keys carry these flags even with no modifier held.
+        let flags = flags.subtracting([.numericPad, .function])
         switch (keyCode, flags, key) {
-        case (51, [], _), (117, [], _), (117, [.function], _): // delete, forward delete
+        case (51, [], _), (117, [], _): // delete, forward delete
             store.requestDeleteSelected()
+        case (123, [], _): // ←
+            store.goToDay(offset: -1)
+        case (124, [], _): // →
+            store.goToDay(offset: 1)
+        case (126, [], _): // ↑: previous block, or scroll up when nothing is selected
+            if !store.selectAdjacent(-1) { store.scrollStep(.hour(-1)) }
+        case (125, [], _): // ↓
+            if !store.selectAdjacent(1) { store.scrollStep(.hour(1)) }
+        case (116, [], _): // Page Up
+            store.scrollStep(.page(-1))
+        case (121, [], _): // Page Down
+            store.scrollStep(.page(1))
+        case (36, [], _), (76, [], _): // Return, keypad Enter
+            guard store.selectedID != nil else { return false }
+            store.requestEditSelected()
+        case (53, [], _): // Esc: drop the selection; otherwise let Esc through
+            return store.clearSelection()
         case (_, [.command], "z"):
             store.undoManager.undo()
         case (_, [.command, .shift], "z"):

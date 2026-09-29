@@ -15,6 +15,8 @@ struct DayTimelineView: View {
     @State private var isDraftEditorOpen = false
     /// The existing event whose editor popover is open.
     @State private var editingID: String?
+    /// Whether the editor being opened should focus its title (opened with Return).
+    @State private var focusTitleOnOpen = false
     @State private var scrollOffset: CGFloat = 0
     @State private var viewportHeight: CGFloat = 0
     @State private var scrollBridge = ScrollBridge()
@@ -43,6 +45,25 @@ struct DayTimelineView: View {
             }
             .onAppear { perform(store.scrollRequest, geo: geo, animated: false) }
             .onChange(of: store.scrollRequest) { _, request in perform(request, geo: geo, animated: true) }
+            .onChange(of: store.scrollStepRequest) { _, request in
+                guard let request else { return }
+                let target = geo.offset(after: request.step, from: Double(scrollOffset),
+                                        viewportHeight: Double(viewportHeight), padding: Double(verticalInset))
+                scrollBridge.scroll(animated: true) { _ in target }
+            }
+            .onChange(of: store.revealRequest) { _, request in
+                guard let request, let item = store.timedEvents.first(where: { $0.id == request.eventID }) else { return }
+                let frame = geo.frame(for: item)
+                guard let target = geo.revealOffset(top: frame.top, bottom: frame.top + frame.height,
+                                                    scrollOffset: Double(scrollOffset), viewportHeight: Double(viewportHeight),
+                                                    padding: Double(verticalInset)) else { return }
+                scrollBridge.scroll(animated: true) { _ in target }
+            }
+            .onChange(of: store.editRequest) { _, request in
+                guard let request else { return }
+                focusTitleOnOpen = true
+                editingID = request.eventID
+            }
         }
         .overlay {
             if store.visibleCalendars.isEmpty {
@@ -180,7 +201,10 @@ struct DayTimelineView: View {
         .overlay(alignment: .top) { resizeHandle(item, .resizeStart, geo: geo) }
         .overlay(alignment: .bottom) { resizeHandle(item, .resizeEnd, geo: geo) }
         .gesture(dragGesture(item, .move, geo: geo))
-        .onTapGesture(count: 2) { editingID = item.id }
+        .onTapGesture(count: 2) {
+            focusTitleOnOpen = false
+            editingID = item.id
+        }
         // Simultaneous, so selection is immediate: a plain single-tap below a double-tap
         // waits out the double-click interval (~0.4 s) before firing.
         .simultaneousGesture(TapGesture().onEnded { store.selectedID = item.id })
@@ -199,7 +223,8 @@ struct DayTimelineView: View {
                     if let result { store.requestEdit(of: snapshot, result: result) }
                 },
                 onDelete: { store.requestDelete(item) },
-                onOpenInCalendar: { SystemLinks.openInCalendar(item) }
+                onOpenInCalendar: { SystemLinks.openInCalendar(item) },
+                focusTitle: focusTitleOnOpen
             )
         }
         .offset(x: gutter + CGFloat(slot.column) * columnWidth, y: CGFloat(frame.top))

@@ -58,6 +58,38 @@ public struct TimelineGeometry: Sendable {
         return min(max(y + padding - fraction * viewportHeight, 0), maxOffset)
     }
 
+    /// The scroll offset that brings a block (`top`...`bottom`, timeline positions) into view
+    /// with an 8-pt margin, or nil if it's already fully visible. A block taller than the
+    /// viewport is aligned by its top. Offsets include `padding` above 00:00.
+    public func revealOffset(top: Double, bottom: Double, scrollOffset: Double, viewportHeight: Double, padding: Double = 0) -> Double? {
+        let margin = 8.0
+        let visibleTop = scrollOffset - padding
+        let visibleBottom = visibleTop + viewportHeight
+        let target: Double
+        if top < visibleTop || bottom - top > viewportHeight - 2 * margin {
+            if top >= visibleTop && bottom <= visibleBottom { return nil }
+            target = top - margin
+        } else if bottom > visibleBottom {
+            target = bottom - viewportHeight + margin
+        } else {
+            return nil
+        }
+        return clamp(target + padding, viewportHeight: viewportHeight, padding: padding)
+    }
+
+    /// The scroll offset after a keyboard step, clamped to the scrollable range.
+    public func offset(after step: ScrollStep, from scrollOffset: Double, viewportHeight: Double, padding: Double = 0) -> Double {
+        let delta = switch step {
+        case .hour(let n): Double(n) * pointsPerHour
+        case .page(let n): Double(n) * max(viewportHeight - pointsPerHour, pointsPerHour)
+        }
+        return clamp(scrollOffset + delta, viewportHeight: viewportHeight, padding: padding)
+    }
+
+    private func clamp(_ offset: Double, viewportHeight: Double, padding: Double) -> Double {
+        min(max(offset, 0), max(0, height + 2 * padding - viewportHeight))
+    }
+
     /// Whether `date` lies within a viewport scrolled down by `scrollOffset` points.
     public func isVisible(_ date: Date, scrollOffset: Double, viewportHeight: Double) -> Bool {
         let y = y(for: date)

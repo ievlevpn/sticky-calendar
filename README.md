@@ -6,6 +6,8 @@ ruler marks the current time and the clock button jumps back to it.
 Drag to create, move and resize events; double-click to edit; ⌫ to delete; ⌘Z to undo;
 ⌃S (or the pin button) toggles whether the sticky stays on top of other windows;
 ⌘O (or the calendar button) opens Calendar, optionally on the day you're viewing.
+Keyboard: ←/→ change day; ↑/↓ move between events (or scroll when none is selected);
+Page Up/Down scroll; Return edits the selected event; Esc deselects.
 
 ## Install
 

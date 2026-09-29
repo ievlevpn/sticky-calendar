@@ -20,6 +20,23 @@ public struct ScrollRequest: Equatable, Sendable {
     public let target: TimelineScrollTarget
 }
 
+/// A keyboard scroll: whole hours, or screenfuls (which keep an hour of overlap).
+public enum ScrollStep: Equatable, Sendable {
+    case hour(Int)
+    case page(Int)
+}
+
+/// One-shot commands from the keyboard to the timeline view; a new `id` repeats them.
+public struct ScrollStepRequest: Equatable, Sendable {
+    public let id: Int
+    public let step: ScrollStep
+}
+
+public struct EventRequest: Equatable, Sendable {
+    public let id: Int
+    public let eventID: String
+}
+
 /// The single owner of calendar state for the UI. All reads and writes go through here.
 @MainActor
 @Observable
@@ -33,6 +50,12 @@ public final class CalendarStore {
     public private(set) var scrollRequest = ScrollRequest(id: 0, target: .now)
     /// Reported by the timeline: whether the now-ruler is inside the visible area.
     public var isNowOnScreen = true
+    public private(set) var scrollStepRequest: ScrollStepRequest?
+    /// Scroll this block into view if it isn't (keyboard selection).
+    public private(set) var revealRequest: EventRequest?
+    /// Open this block's editor with the title focused (Return).
+    public private(set) var editRequest: EventRequest?
+    @ObservationIgnored private var requestCounter = 0
     public var selectedID: String?
     public var lastError: String?
     public var pendingEdit: PendingEdit?
@@ -99,6 +122,50 @@ public final class CalendarStore {
     public func requestAccessIfNeeded() async {
         if source.currentAccess() == .notDetermined { _ = await source.requestAccess() }
         reload()
+    }
+
+    // MARK: Keyboard
+
+    /// Timed events in reading order: by start time, then left to right.
+    public var navigationOrder: [EventItem] {
+        let slots = OverlapLayout.columns(for: timedEvents)
+        return timedEvents.sorted {
+            ($0.start, slots[$0.id]?.column ?? 0) < ($1.start, slots[$1.id]?.column ?? 0)
+        }
+    }
+
+    /// Moves the selection `step` blocks along the reading order, stopping at the ends.
+    /// Returns false when nothing is selected, so the caller can scroll instead.
+    @discardableResult
+    public func selectAdjacent(_ step: Int) -> Bool {
+        let order = navigationOrder
+        guard let id = selectedID, let index = order.firstIndex(where: { $0.id == id }) else { return false }
+        let target = order[min(max(index + step, 0), order.count - 1)]
+        selectedID = target.id
+        revealRequest = EventRequest(id: nextRequestID(), eventID: target.id)
+        return true
+    }
+
+    /// Esc: returns false when nothing was selected, so the key can do its usual thing.
+    @discardableResult
+    public func clearSelection() -> Bool {
+        guard selectedID != nil else { return false }
+        selectedID = nil
+        return true
+    }
+
+    public func scrollStep(_ step: ScrollStep) {
+        scrollStepRequest = ScrollStepRequest(id: nextRequestID(), step: step)
+    }
+
+    public func requestEditSelected() {
+        guard let id = selectedID, timedEvents.contains(where: { $0.id == id }) else { return }
+        editRequest = EventRequest(id: nextRequestID(), eventID: id)
+    }
+
+    private func nextRequestID() -> Int {
+        requestCounter += 1
+        return requestCounter
     }
 
     // MARK: Navigation
