@@ -2,7 +2,7 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
-## Unreleased
+## 0.10.1 — 2026-09-29
 
 ### Added
 - **Links and Markdown in reminders' notes**: the editor's notes show formatting as you type (like the note), and links open when clicked. A reminder with a link in its notes gets a 🔗 button in the list that opens it directly.
