@@ -2,7 +2,7 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
-## Unreleased
+## 0.10.0 — 2026-09-29
 
 ### Added
 - **Edit reminders**: click one to change its title, date and time, importance (!, !!, !!!) and notes. Rows show the importance and the first line of the notes. Works with Apple Reminders, Todoist and TickTick; for Obsidian, importance uses the Tasks plugin's ⏫🔼🔽 and notes (the indented lines under a task) are shown read-only.
