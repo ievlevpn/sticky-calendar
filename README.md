@@ -4,12 +4,15 @@
 
 A tiny menu-bar app that shows the day's calendar as a floating, always-on-top timeline.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/screenshot-dark.png">
-    <img src="docs/images/screenshot-light.png" width="300" alt="Sticky Calendar: a day's timeline with events, the red now-line, and a Markdown note underneath">
-  </picture>
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/desktop-dark.png">
+  <img src="docs/images/desktop-light.png" alt="A Mac desktop with a code editor and a document open; Sticky Calendar floats in the top-right corner showing the day's events, the current time and a Markdown checklist">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/sticky-dark.png">
+  <img src="docs/images/sticky-light.png" align="right" width="240" alt="Close-up of the sticky: timeline with events, the red now-line, and a note with checkboxes">
+</picture>
 
 Scroll through the day (48 pt per hour — a taller window shows more hours); the red
 ruler marks the current time and the clock button jumps back to it.
@@ -22,6 +25,8 @@ syntax, and task boxes tick with a click. Drag its bar to resize; **Clear** empt
 (⌘Z brings it back).
 Keyboard: ←/→ change day; ↑/↓ move between events (or scroll when none is selected);
 Page Up/Down scroll; Return edits the selected event; Esc deselects.
+
+<br clear="right">
 
 ## Install
 
