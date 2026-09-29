@@ -83,7 +83,7 @@ struct HeaderView: View {
         }
         .buttonStyle(.plain)
         .help("Choose a day (or scroll over the date; ←/→)")
-        .background(ScrollWheelCatcher { steps in store.goToDay(offset: steps) })
+        .overlay(ScrollWheelCatcher { steps in store.goToDay(offset: steps) })
         .popover(isPresented: $isPickingDay, arrowEdge: .bottom) {
             MonthPicker(selected: store.day) { day in
                 store.goTo(day)
@@ -219,7 +219,8 @@ struct MonthPicker: View {
 }
 
 /// Turns scroll-wheel and trackpad scrolling over a view into whole steps (+1 = next day),
-/// one per mouse notch or per ~24 pt of trackpad travel.
+/// one per mouse notch or per ~24 pt of trackpad travel. It lies over the view but takes
+/// only scroll events; clicks go through to what's underneath.
 struct ScrollWheelCatcher: NSViewRepresentable {
     let onStep: (Int) -> Void
 
@@ -234,6 +235,10 @@ struct ScrollWheelCatcher: NSViewRepresentable {
     final class CatcherView: NSView {
         var onStep: ((Int) -> Void)?
         private var travel: CGFloat = 0
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            NSApp.currentEvent?.type == .scrollWheel ? super.hitTest(point) : nil
+        }
 
         override func scrollWheel(with event: NSEvent) {
             // Down (or a swipe up with natural scrolling) moves forward in time.
