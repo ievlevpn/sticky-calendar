@@ -2,7 +2,7 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
-## Unreleased
+## 0.9.0 — 2026-09-29
 
 ### Added
 - The note can have **its own sticky** (Settings → Note → Show the note), with its own pin and position; per-day notes still follow the calendar's date.
