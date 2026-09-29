@@ -6,16 +6,29 @@ cask (see "Homebrew" below).
 
 ## Cutting a release
 
-    git tag v1.2.3
-    git push origin v1.2.3
+1. Add a section for the version to the top of `CHANGELOG.md`, written for users:
 
-The `Release` workflow tests, builds a universal DMG signed with the self-signed
-certificate, verifies it, and creates the GitHub release `v1.2.3` with
+       ## 1.2.3 — 2026-10-01
+
+       ### Added
+       - …
+
+   One line per bullet: GitHub shows line breaks in release notes as they are.
+   `./scripts/release-notes.sh 1.2.3` prints what the release will say.
+2. Commit, then tag and push:
+
+       git tag v1.2.3
+       git push origin v1.2.3
+
+The `Release` workflow first takes the version's section of `CHANGELOG.md` as the release
+notes (and stops if there isn't one), then tests, builds a universal DMG signed with the
+self-signed certificate, verifies it, and creates the GitHub release `v1.2.3` with
 `StickyCalendar-1.2.3.dmg` attached. The build number is the commit count.
 
 Tags must be `vX.Y.Z` (a release) or `vX.Y.Z-suffix`, e.g. `v1.3.0-beta.1` (published as a
 GitHub pre-release: never "Latest", never offered by the app's update check, never pushed
-to Homebrew). Any other tag fails the workflow before anything is built.
+to Homebrew). A pre-release needs no changelog section: it uses its base version's, or a
+one-line note. Any other tag fails the workflow before anything is built.
 
 To build the same DMG locally: `./scripts/build-dmg.sh 1.2.3` (then
 `./scripts/verify-dmg.sh build/StickyCalendar-1.2.3.dmg 1.2.3`).

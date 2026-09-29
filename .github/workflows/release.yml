@@ -23,6 +23,10 @@ jobs:
           echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
           echo "PRERELEASE=$([[ $KIND == prerelease ]] && echo 1 || echo 0)" >> "$GITHUB_ENV"
 
+      # Before anything slow: a release without a CHANGELOG.md section fails here.
+      - name: Release notes
+        run: ./scripts/release-notes.sh "$VERSION" > "$RUNNER_TEMP/notes.md"
+
       - name: Test
         run: ./scripts/test.sh
 
@@ -50,7 +54,7 @@ jobs:
           FLAGS=()
           [[ $PRERELEASE == 1 ]] && FLAGS=(--prerelease)
           gh release create "$GITHUB_REF_NAME" "build/StickyCalendar-$VERSION.dmg" \
-            --title "Sticky Calendar $VERSION" --generate-notes ${FLAGS[@]+"${FLAGS[@]}"}
+            --title "Sticky Calendar $VERSION" --notes-file "$RUNNER_TEMP/notes.md" ${FLAGS[@]+"${FLAGS[@]}"}
 
       # Inactive until the repo is public and the TAP_TOKEN secret exists (see RELEASING.md).
       # Pre-releases never go to Homebrew.

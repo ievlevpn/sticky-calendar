@@ -58,6 +58,8 @@ and click **Open Anyway**.
 
 ## Updating
 
+What's new in each version: [CHANGELOG.md](CHANGELOG.md) (also each release's notes).
+
 The app checks for new releases once a day (Settings → Updates) and shows
 **Update Available** in its menu. It never installs anything by itself: Homebrew users run
 `brew upgrade --cask sticky-calendar` (the menu item copies the command), others download
