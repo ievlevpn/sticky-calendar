@@ -29,6 +29,9 @@ struct ReminderEditor: View {
     @State private var priority: ReminderPriority
     @State private var notes: String
     @State private var isDeleting = false
+    /// The last postpone button used and the date it gave; it shows as chosen until the date changes.
+    @State private var postponed: (option: Postpone, due: Postpone.Due)?
+    @State private var flashesDate = false
     @Environment(\.dismiss) private var dismiss
 
     init(item: ReminderItem, listTitle: String, canEditNotes: Bool,
@@ -65,6 +68,9 @@ struct ReminderEditor: View {
                     DatePicker("", selection: $date, displayedComponents: hasTime ? [.date, .hourAndMinute] : [.date])
                         .labelsHidden()
                         .datePickerStyle(.field)
+                        .background(RoundedRectangle(cornerRadius: 5)
+                            .fill(Color.accentColor.opacity(flashesDate ? 0.3 : 0))
+                            .padding(-2))
                 }
             }
             if hasDate && supportsTime {
@@ -128,12 +134,28 @@ struct ReminderEditor: View {
             label()
             Spacer(minLength: 4)
             ForEach(Postpone.allCases.filter { supportsTime || !$0.isHours }, id: \.self) { option in
-                Button(option.shortTitle) { postpone(option) }
+                postponeButton(option)
                     .controlSize(.small)
                     .fixedSize()
                     .help(option.title)
             }
         }
+    }
+
+    @ViewBuilder
+    private func postponeButton(_ option: Postpone) -> some View {
+        let button = Button(option.shortTitle) { postpone(option) }
+        if chosenPostpone == option {
+            button.buttonStyle(.borderedProminent).accessibilityAddTraits(.isSelected)
+        } else {
+            button
+        }
+    }
+
+    /// The postpone button whose date is still the one set.
+    private var chosenPostpone: Postpone? {
+        guard let postponed, hasDate, hasTime == postponed.due.hasTime, date == postponed.due.date else { return nil }
+        return postponed.option
     }
 
     private func postpone(_ option: Postpone) {
@@ -142,6 +164,12 @@ struct ReminderEditor: View {
             hasDate = true
             hasTime = due.hasTime
             date = due.date
+            postponed = (option, due)
+            flashesDate = true
+        }
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            withAnimation(.easeOut(duration: 0.4)) { flashesDate = false }
         }
     }
 

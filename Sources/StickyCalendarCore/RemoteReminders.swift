@@ -139,6 +139,11 @@ enum RemoteDates {
         return formatter("yyyy-MM-dd'T'HH:mm:ss", zone).date(from: String(text.prefix(19)))
     }
 
+    /// A wall-clock time with no zone ("2026-09-28T09:30:00"), read in `zone`.
+    static func floatingString(_ date: Date, in zone: TimeZone) -> String {
+        formatter("yyyy-MM-dd'T'HH:mm:ss", zone).string(from: date)
+    }
+
     static func utcString(_ date: Date, format: String = "yyyy-MM-dd'T'HH:mm:ss'Z'") -> String {
         formatter(format, TimeZone(identifier: "UTC")!).string(from: date)
     }
@@ -168,6 +173,8 @@ public final class TodoistSource: ReminderSource {
     private var rejected = false
     /// The last known state of each task, to tell what a save changes.
     private var known = KnownTasks()
+    /// Each repeating task's due as Todoist sent it: its rule ("every mon"), language and zone.
+    private var repeats: [String: [String: Any]] = [:]
 
     public static let tokenAccount = "todoist"
     public static let tokenPage = URL(string: "https://app.todoist.com/app/settings/integrations/developer")!
@@ -222,7 +229,13 @@ public final class TodoistSource: ReminderSource {
             let before = known[item.id]
             var body: [String: Any] = [:]
             if before?.title != item.title { body["content"] = item.title }
-            if before?.due != item.due || before?.dueHasTime != item.dueHasTime { body.merge(dueFields(item)) { $1 } }
+            if before?.due != item.due || before?.dueHasTime != item.dueHasTime {
+                if let due = item.due, item.isRepeating, let rule = repeats[item.id] {
+                    try await reschedule(item.id, to: due, hasTime: item.dueHasTime, keeping: rule)
+                } else {
+                    body.merge(dueFields(item)) { $1 }
+                }
+            }
             if before?.notes != item.notes { body["description"] = item.notes ?? "" }
             if before?.priority != item.priority { body["priority"] = Self.todoistPriority(item.priority) }
             if !body.isEmpty { try await client.send("POST", "tasks/\(item.id)", body: body) }
@@ -276,6 +289,7 @@ public final class TodoistSource: ReminderSource {
         var due: Date?
         var hasTime = false
         let dueRow = row["due"] as? [String: Any]
+        if let dueRow, dueRow["is_recurring"] as? Bool == true, row["checked"] as? Bool != true { repeats[id] = dueRow }
         if let dueRow, let text = dueRow["date"] as? String {
             if text.count <= 10 {
                 due = RemoteDates.day(text, in: calendar.timeZone)
@@ -306,6 +320,29 @@ public final class TodoistSource: ReminderSource {
     }
 
     static func todoistPriority(_ priority: ReminderPriority) -> Int { priority.rawValue + 1 }
+
+    /// Moves a repeating task to `date` and keeps it repeating. The tasks endpoint replaces
+    /// the whole due, rule and all; the Sync API's `item_update` takes the new date with the
+    /// old rule, as rescheduling in Todoist does.
+    private func reschedule(_ id: String, to date: Date, hasTime: Bool, keeping rule: [String: Any]) async throws {
+        var due: [String: Any] = ["string": rule["string"] as? String ?? "", "is_recurring": true]
+        if let lang = rule["lang"] as? String { due["lang"] = lang }
+        if !hasTime {
+            due["date"] = RemoteDates.dayString(date, in: calendar.timeZone)
+        } else if let zone = rule["timezone"] as? String {
+            due["date"] = RemoteDates.utcString(date)
+            due["timezone"] = zone
+        } else {
+            due["date"] = RemoteDates.floatingString(date, in: calendar.timeZone)
+        }
+        let uuid = UUID().uuidString
+        let command: [String: Any] = ["type": "item_update", "uuid": uuid, "args": ["id": id, "due": due]]
+        let reply = try await client.send("POST", "sync", body: ["commands": [command]]) as? [String: Any]
+        // 200 either way; each command's result is "ok" or an error.
+        if let failure = (reply?["sync_status"] as? [String: Any])?[uuid] as? [String: Any] {
+            throw ReminderSourceError("Todoist couldn't move that task: \(failure["error"] as? String ?? "unknown error").")
+        }
+    }
 
     private func dueFields(_ item: ReminderItem) -> [String: Any] {
         guard let due = item.due else { return ["due_string": "no date"] }

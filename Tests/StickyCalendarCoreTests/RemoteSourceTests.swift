@@ -4,7 +4,7 @@ import Testing
 
 @MainActor
 struct TodoistSourceTests {
-    private static func handler(_ call: StubHTTP.Call) -> (status: Int, json: Any) {
+    nonisolated private static func handler(_ call: StubHTTP.Call) -> (status: Int, json: Any) {
         switch (call.method, call.path) {
         case ("GET", "/api/v1/projects"):
             return (200, ["results": [
@@ -22,7 +22,8 @@ struct TodoistSourceTests {
             }
             return (200, ["results": [
                 ["id": "t2", "content": "Standup", "project_id": "p2", "checked": false,
-                 "due": ["date": "2026-09-28T09:30:00Z", "string": "today 9:30", "is_recurring": true]],
+                 "due": ["date": "2026-09-28T09:30:00Z", "string": "every weekday 9:30", "lang": "en",
+                         "timezone": "Europe/Berlin", "is_recurring": true]],
                 ["id": "t3", "content": "Someday", "project_id": "p2", "checked": false, "due": NSNull()],
             ], "next_cursor": NSNull()])
         case ("GET", "/api/v1/tasks/completed/by_completion_date"):
@@ -31,12 +32,23 @@ struct TodoistSourceTests {
                 // A repeating task's earlier completion: it's still open (t2), so left out.
                 ["id": "t2", "content": "Standup", "project_id": "p2", "checked": true, "completed_at": "2026-09-27T09:40:00Z"],
             ], "next_cursor": NSNull()])
+        case ("POST", "/api/v1/sync"):
+            if call.headers["Authorization"] == "Bearer refused" {
+                return (200, ["sync_status": [Self.uuid(in: call): ["error": "Invalid date format"]]])
+            }
+            return (200, ["sync_status": [Self.uuid(in: call): "ok"]])
         case ("POST", "/api/v1/tasks"):
             return (200, ["id": "t9", "content": call.body["content"] ?? "", "project_id": call.body["project_id"] ?? "",
                           "checked": false, "due": ["date": call.body["due_date"] ?? "", "string": "", "is_recurring": false]])
         default:
             return (200, [:])
         }
+    }
+
+    /// The command's uuid, from the logged body (which holds its values as text).
+    nonisolated private static func uuid(in call: StubHTTP.Call) -> String {
+        let text = call.body["commands"] as? String ?? ""
+        return text.firstMatch(of: #/uuid = "?([0-9A-F-]{36})/#).map { String($0.1) } ?? ""
     }
 
     @Test func readsProjectsAndEveryPageOfTasks() async throws {
@@ -111,6 +123,65 @@ struct TodoistSourceTests {
         #expect(bodies[0]["due_date"] as? String == "2026-09-28" && bodies[0]["project_id"] as? String == "p1")
         #expect(bodies[1]["due_datetime"] as? String == "2026-09-28T10:00:00Z")
         #expect(saved.id == "t9")
+    }
+
+    @Test func postponingARepeatingTaskKeepsItsRule() async throws {
+        let (session, log) = StubHTTP.session(Self.handler)
+        let source = TodoistSource(token: "t", session: session, calendar: utc)
+        var standup = try await source.reminders(completedSince: at(0))[1]
+        standup.due = at(9, 30).addingTimeInterval(86_400)
+        _ = try await source.save(standup)
+        let writes = log().filter { $0.method == "POST" }
+        #expect(writes.map(\.path) == ["/api/v1/sync"])
+        let commands = try #require(writes.first?.body["commands"] as? String)
+        #expect(commands.contains("item_update") && commands.contains("t2"))
+        #expect(commands.contains("every weekday 9:30") && commands.contains("2026-09-29T09:30:00Z"))
+        #expect(commands.contains("Europe/Berlin"))
+    }
+
+    @Test func aRepeatingTaskWithNoZoneMovesToAWallClockTimeOrADay() async throws {
+        let (session, log) = StubHTTP.session { call in
+            if call.method == "GET", call.path == "/api/v1/tasks" {
+                return (200, ["results": [
+                    ["id": "r1", "content": "Stretch", "project_id": "p1", "checked": false,
+                     "due": ["date": "2026-09-28T07:00:00", "string": "every day 7am", "is_recurring": true]],
+                    ["id": "r2", "content": "Water plants", "project_id": "p1", "checked": false,
+                     "due": ["date": "2026-09-28", "string": "every 3 days", "is_recurring": true]],
+                ], "next_cursor": NSNull()])
+            }
+            return Self.handler(call)
+        }
+        let source = TodoistSource(token: "t", session: session, calendar: utc)
+        let items = try await source.reminders(completedSince: at(0))
+        var stretch = try #require(items.first { $0.id == "r1" })
+        var plants = try #require(items.first { $0.id == "r2" })
+        stretch.due = at(10)
+        plants.due = at(0).addingTimeInterval(86_400)
+        _ = try await source.save(stretch)
+        _ = try await source.save(plants)
+        let commands = log().filter { $0.path == "/api/v1/sync" }.compactMap { $0.body["commands"] as? String }
+        #expect(commands.count == 2)
+        #expect(commands[0].contains("2026-09-28T10:00:00") && !commands[0].contains("10:00:00Z"))
+        #expect(commands[1].contains("2026-09-29") && commands[1].contains("every 3 days"))
+    }
+
+    @Test func clearingARepeatingTasksDateStillUsesTheTasksEndpoint() async throws {
+        let (session, log) = StubHTTP.session(Self.handler)
+        let source = TodoistSource(token: "t", session: session, calendar: utc)
+        var standup = try await source.reminders(completedSince: at(0))[1]
+        standup.due = nil
+        _ = try await source.save(standup)
+        let writes = log().filter { $0.method == "POST" }
+        #expect(writes.map(\.path) == ["/api/v1/tasks/t2"])
+        #expect(writes.first?.body["due_string"] as? String == "no date")
+    }
+
+    @Test func aRefusedRescheduleIsReported() async throws {
+        let (session, _) = StubHTTP.session(Self.handler)
+        let source = TodoistSource(token: "refused", session: session, calendar: utc)
+        var standup = try await source.reminders(completedSince: at(0))[1]
+        standup.due = at(12)
+        await #expect(throws: ReminderSourceError.self) { try await source.save(standup) }
     }
 
     @Test func aRejectedTokenIsReported() async {
