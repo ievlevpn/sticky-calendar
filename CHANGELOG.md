@@ -2,7 +2,7 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
-## Unreleased
+## 0.22.0 — 2026-09-30
 
 ### Added
 - **Things 3 as a reminders source (beta)**: Today, Inbox, projects and areas from Things on this Mac. The day is Things' "When", so Today matches Things' Today; deadlines show beside it ("Deadline Fri", red once missed). Tick, add, rename, reschedule and delete; changes made in Things show up within 30 seconds (or with ⌘R). macOS asks once whether Sticky Calendar may control Things.
