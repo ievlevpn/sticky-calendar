@@ -2,6 +2,12 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.21.2 — 2026-09-30
+
+### Fixed
+- **Todoist: unticked tasks no longer vanish for a moment.** Todoist can take a few seconds to show its own changes, so a task you unticked (or ticked, or deleted) could disappear or flip back until the next refresh. For a few seconds after a change, Sticky Calendar now keeps what you did and checks again, and unticking straight after ticking reopens the task in Todoist as it should.
+- **The ✓ button hides completed reminders, including ones you just ticked.** It used to do nothing visible when the only completed reminders were ones ticked in the app; now it's lit whenever completed reminders show, and clicking it hides them all.
+
 ## 0.21.1 — 2026-09-30
 
 ### Fixed
