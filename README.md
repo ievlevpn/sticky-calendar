@@ -29,14 +29,15 @@ double-click to edit; ⌫ to delete; ⌘Z to undo;
 Events with a Zoom, Meet, Teams, Webex or Jitsi link get a camera button that joins the call.
 ⌘M (or double-clicking the header) collapses the sticky to just what's on now or next —
 in the Reminders tab, to one reminder at a time (scroll over it to flip through, tick it
-off for the next), under the event on now;
+off for the next, click it to edit, right-click for more), under the event on now;
 ⌃⌥S shows or hides it from any app (Settings → Shortcuts). Optionally, the stickies fade
 when left alone and come back when you point at them (Settings → General → Fade when idle).
 The checklist button shows your reminders from Apple Reminders, Todoist, TickTick or the
 tasks in an Obsidian vault, either as a tab of this sticky (the default) or in their own
 sticky; the first time, it asks which source and where (Settings → Reminders changes both).
 Switch between Today (overdue and due today) and whole lists. Tick and add them there;
-click one to change its date and time, importance (!, !!, !!!) and notes; ⌘F searches all
+click one to change its date and time, importance (!, !!, !!!) and notes, or postpone it
+(+1 h, +3 h, tomorrow, next week; also on right-click); ⌘F searches all
 of them loosely ("clbnk" finds "Call the bank"); a date typed into a new one ("Call Sam tomorrow 10am") becomes its due
 date. ⌘O (or Open in the ••• menu) opens Reminders, Todoist, TickTick or Obsidian.
 ⌃⌥R shows or hides them from any app.

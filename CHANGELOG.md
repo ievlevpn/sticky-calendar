@@ -2,6 +2,20 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.21.0 — 2026-09-30
+
+### Added
+- **Postpone a reminder**: its editor has +1 h, +3 h, Tomorrow and Next week buttons, and right-clicking a reminder has a Postpone menu that applies at once. Hours count from now (so an overdue reminder moves into the future); Tomorrow and Next week keep its time. ⌘Z undoes it.
+- **Edit reminders in compact mode**: clicking the reminder opens its editor, and right-clicking it opens the same menu as the full list, so you no longer have to expand the sticky first.
+
+### Fixed
+- **Ticking a repeating reminder no longer makes it vanish.** Todoist, TickTick and Reminders move a repeating task to its next date instead of completing it, so it used to disappear from Today (or jump back unticked in Lists) a moment after you ticked it. It now stays ticked until the next day, showing when it's due next ("Next Tue 09:00").
+- **Unticking a repeating reminder, or ⌘Z, puts its date back.** Before, it ticked the task again, skipping one more occurrence.
+- **Todoist**: completed tasks are fetched with Todoist's default page size, and a repeating task's earlier completions no longer show up as a duplicate.
+- **Changing the notes folder brings your latest notes along.** Moving from one folder to another used to copy Sticky Calendar's older copies of the notes, not what you'd written in the first folder; now the first folder's notes go to the new one.
+- **Choosing a folder tells you about notes it kept.** When the folder already has a different note for a day, that file is left as it is, and Settings now says how many weren't copied.
+- **Leaving a notes folder that can't be found asks first** (e.g. on a drive that isn't connected), since notes written there can't come along.
+
 ## 0.20.0 — 2026-09-30
 
 ### Added
