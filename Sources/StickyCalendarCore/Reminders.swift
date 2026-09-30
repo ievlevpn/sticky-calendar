@@ -31,11 +31,13 @@ public struct ReminderItem: Identifiable, Equatable, Sendable {
     public var isRepeating: Bool
     /// A repeating one ticked here, still shown ticked: when it's due next.
     public var nextDue: Date?
+    /// When it must be done by, where the source keeps that apart from the due date (Things).
+    public var deadline: Date?
 
     public init(
         id: String = "", title: String, listID: String, due: Date? = nil, dueHasTime: Bool = false,
         isCompleted: Bool = false, completionDate: Date? = nil, notes: String? = nil, priority: ReminderPriority = .none,
-        isRepeating: Bool = false
+        isRepeating: Bool = false, deadline: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -47,6 +49,7 @@ public struct ReminderItem: Identifiable, Equatable, Sendable {
         self.notes = notes
         self.priority = priority
         self.isRepeating = isRepeating
+        self.deadline = deadline
     }
 
     public var isNew: Bool { id.isEmpty }
@@ -94,11 +97,17 @@ public protocol ReminderSource: AnyObject {
     func refreshIfNeeded()
     /// Whether notes can be written back (Obsidian's are read-only here).
     var canEditNotes: Bool { get }
+    /// Whether due dates can have a time of day (Things' can't).
+    var supportsTime: Bool { get }
+    /// Whether reminders have an importance (Things' don't).
+    var supportsPriority: Bool { get }
 }
 
 public extension ReminderSource {
     func refreshIfNeeded() {}
     var canEditNotes: Bool { true }
+    var supportsTime: Bool { true }
+    var supportsPriority: Bool { true }
 }
 
 /// A heading and its reminders, as the reminders view shows them.
