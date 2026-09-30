@@ -114,9 +114,11 @@ public final class MicrosoftToDoSource: ReminderSource {
                 rows = try await pages(path, filter: "status ne 'completed'")
                 rows += try await pages(path, filter: "status eq 'completed' and completedDateTime/dateTime ge '\(stamp)'")
             } catch is ReminderSourceError {
-                // Graph may not filter tasks: fetch all and filter here.
-                filterUnsupported = true
+                // The filter may be refused, or the service may just have failed. Fetch all and
+                // filter here; only when that works is the filter written off, else the next
+                // refresh tries it again.
                 rows = try await pages(path)
+                filterUnsupported = true
             }
         } else {
             rows = try await pages(path)
@@ -193,7 +195,8 @@ public final class MicrosoftToDoSource: ReminderSource {
         }
         if before?.due != item.due || before?.dueHasTime != item.dueHasTime, item.due != nil || before != nil {
             if let due = item.due {
-                body["dueDateTime"] = ["dateTime": RemoteDates.dayString(due, in: calendar.timeZone) + "T00:00:00", "timeZone": zone]
+                // A day, not an instant: sent as UTC so it reads back as the same day wherever it is read.
+                body["dueDateTime"] = ["dateTime": RemoteDates.dayString(due, in: calendar.timeZone) + "T00:00:00", "timeZone": "UTC"]
                 if item.dueHasTime {
                     let local = DateFormatter()
                     local.locale = Locale(identifier: "en_US_POSIX")

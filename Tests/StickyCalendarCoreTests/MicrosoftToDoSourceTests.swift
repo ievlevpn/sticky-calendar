@@ -132,4 +132,35 @@ struct MicrosoftToDoSourceTests {
         let items = try await source.reminders(completedSince: at(0))
         #expect(items.contains { $0.id == "t1" })
     }
+
+    final class Switch: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = true
+        var failing: Bool { get { lock.withLock { value } } set { lock.withLock { value = newValue } } }
+    }
+
+    @Test func aFailedFilteredRequestDoesNotWriteTheFilterOff() async throws {
+        let broken = Switch()
+        let (source, log) = source { call in
+            if broken.failing, call.path.hasSuffix("/tasks") { return (500, [:]) }
+            return Self.graph(call)
+        }
+        await #expect(throws: ReminderSourceError.self) { try await source.reminders(completedSince: at(0)) }
+        broken.failing = false
+        _ = try await source.reminders(completedSince: at(0))
+        let filtered = log().filter { $0.path == "/v1.0/me/todo/lists/L1/tasks" && $0.query["$filter"] != nil }
+        #expect(filtered.count >= 3)   // one failed try, then both filtered requests again
+    }
+
+    @Test func aDueDayIsWrittenInUTC() async throws {
+        var moscow = Calendar(identifier: .gregorian)
+        moscow.timeZone = TimeZone(identifier: "Europe/Moscow")!
+        let (source, log) = source(calendar: moscow)
+        var t1 = try await source.reminders(completedSince: at(0)).first { $0.id == "t1" }!
+        t1.due = moscow.date(from: DateComponents(year: 2026, month: 9, day: 30))
+        t1.dueHasTime = false
+        _ = try await source.save(t1)
+        let due = "\(log().last!.body["dueDateTime"]!)"
+        #expect(due.contains("2026-09-30T00:00:00") && due.contains("UTC"))
+    }
 }
