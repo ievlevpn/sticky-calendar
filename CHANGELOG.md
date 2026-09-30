@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.20.0 — 2026-09-30
+
+### Added
+- **Name your note files** (Settings → Note, with notes kept in a folder): choose how day notes are named using the date tokens Obsidian's daily notes use (`YYYY`, `MM`, `MMM`, `DD`, `ddd`, `dddd`, `[text]`), with presets and a live example. A `/` puts them in folders, e.g. `YYYY/MM/YYYY-MM-DD` → `2026/09/2026-09-30.md`. The single note's name can be changed too. Files already there keep their names.
+
 ## 0.19.0 — 2026-09-30
 
 ### Added

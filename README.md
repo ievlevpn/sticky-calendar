@@ -46,8 +46,8 @@ journal:
 Markdown renders as you type, Obsidian-style — only the line you're editing shows its
 syntax, and task boxes tick with a click; LaTeX math (`$…$`, `$$…$$`) is typeset too.
 Drag its bar to resize (all the way down closes it); **Clear** empties it (⌘Z brings it back). Notes can also be kept as
-Markdown files in a folder you choose, e.g. an Obsidian vault (`2026-09-30.md` for a day's note;
-Settings → Note). Settings has tabs and a search field that finds any setting from a few letters.
+Markdown files in a folder you choose, e.g. an Obsidian vault, named with Obsidian's date
+tokens (`YYYY-MM-DD` by default, or e.g. `YYYY/MM/YYYY-MM-DD dddd`; Settings → Note). Settings has tabs and a search field that finds any setting from a few letters.
 Keyboard: ←/→ change day; ↑/↓ move between events (or scroll when none is selected);
 Page Up/Down scroll; Return edits the selected event; Esc deselects.
 
