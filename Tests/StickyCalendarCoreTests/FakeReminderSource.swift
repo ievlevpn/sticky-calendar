@@ -16,9 +16,15 @@ final class FakeReminderSource: ReminderSource {
     var canEditNotes = true
     /// Repeat daily, as Todoist's do: completing one moves it to the next day, still open.
     var repeatingIDs: Set<String> = []
-    /// Lag like Todoist: this many reads after the next change still see what was there before it.
-    var staleReads = 0
-    private var stale: [ReminderItem]?
+    /// Pause the next read between its open and its completed reminders (Todoist reads them
+    /// in separate requests), or the next save after storing, before it answers.
+    var pauseNextRead = false
+    var pauseNextSave = false
+    private(set) var pausedRead: CheckedContinuation<Void, Never>?
+    private(set) var pausedSave: CheckedContinuation<Void, Never>?
+
+    func resumeRead() { pausedRead?.resume(); pausedRead = nil }
+    func resumeSave() { pausedSave?.resume(); pausedSave = nil }
     private var nextID = 1
 
     func currentAccess() -> CalendarAccess { access }
@@ -27,21 +33,29 @@ final class FakeReminderSource: ReminderSource {
     func defaultListID() -> String? { defaultID }
 
     func reminders(completedSince: Date) async -> [ReminderItem] {
-        var shown = stored
-        if let stale, staleReads > 0 {
-            shown = stale
-            staleReads -= 1
-            if staleReads == 0 { self.stale = nil }
+        if pauseNextRead {
+            pauseNextRead = false
+            let open = stored.filter { !$0.isCompleted }
+            await withCheckedContinuation { pausedRead = $0 }
+            return open + stored.filter { $0.isCompleted && ($0.completionDate ?? .distantPast) >= completedSince }
         }
-        return shown.filter { !$0.isCompleted || ($0.completionDate ?? .distantPast) >= completedSince }
+        return stored.filter { !$0.isCompleted || ($0.completionDate ?? .distantPast) >= completedSince }
     }
 
-    func save(_ item: ReminderItem) throws -> ReminderItem {
+    func save(_ item: ReminderItem) async throws -> ReminderItem {
+        let saved = try store(item)
+        if pauseNextSave {
+            pauseNextSave = false
+            await withCheckedContinuation { pausedSave = $0 }
+        }
+        return saved
+    }
+
+    private func store(_ item: ReminderItem) throws -> ReminderItem {
         if failNextSave {
             failNextSave = false
             throw ReminderSourceError("Couldn't save")
         }
-        if staleReads > 0, stale == nil { stale = stored }
         var saved = item
         if item.isNew {
             saved.id = "r\(nextID)"
@@ -62,7 +76,6 @@ final class FakeReminderSource: ReminderSource {
     func link(for item: ReminderItem) -> URL? { URL(string: "fake://\(item.id)") }
 
     func remove(_ item: ReminderItem) throws {
-        if staleReads > 0, stale == nil { stale = stored }
         guard let i = stored.firstIndex(where: { $0.id == item.id }) else { throw EventSourceError.notFound }
         stored.remove(at: i)
     }

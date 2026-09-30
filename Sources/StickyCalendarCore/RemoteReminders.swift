@@ -69,8 +69,9 @@ public enum ReminderTokens {
 }
 
 /// What a remote source last knew of each task, to send only what a save changes. A read
-/// soon after a save may not show it yet (Todoist lags), so for a little while what was
-/// saved counts over what was read: else ticking and then unticking would send no reopen.
+/// that was already under way when a task was saved may still have the task as it was
+/// (the store ignores such a read, but it lands here), so for a little while what was saved
+/// counts over what was read: else ticking and quickly unticking would send no reopen.
 struct KnownTasks {
     private var items: [String: ReminderItem] = [:]
     private var savedAt: [String: Date] = [:]

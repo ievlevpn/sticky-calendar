@@ -28,23 +28,17 @@ public final class ReminderStore {
     /// Repeating ones ticked here, as ticked. The source has already moved each to its next
     /// date and left it open; until the day changes they're shown ticked instead.
     private var tickedRepeats: [String: ReminderItem] = [:]
-    /// What this app last did to each reminder (nil: deleted it), and when. A read soon after
-    /// that disagrees is the source lagging behind its own change (Todoist does), so ours is
-    /// kept and the source asked again shortly; after `settleTime` its word counts.
-    @ObservationIgnored private var recentWrites: [String: (item: ReminderItem?, at: Date)] = [:]
-    @ObservationIgnored private let settleTime: TimeInterval = 10
-    @ObservationIgnored private let recheckDelay: Duration
-    @ObservationIgnored private var isRecheckScheduled = false
-    /// Bumped on every reload and source change; an older fetch must not overwrite a newer one.
+    /// Bumped on every reload, source change and change of a reminder: a fetch that began
+    /// before any of these must not land (it may have read the source half before a change
+    /// and half after, so that a reminder just unticked is in neither its open nor its
+    /// completed ones).
     @ObservationIgnored private var generation = 0
     /// Changes still being saved (undo and redo run as tasks); see `idle()`.
     @ObservationIgnored private var work: [Task<Void, Never>] = []
 
     public init(source: ReminderSource?, settings: ReminderSettings,
-                calendar: Calendar = .autoupdatingCurrent, now: @escaping () -> Date = Date.init,
-                recheckDelay: Duration = .seconds(3)) {
+                calendar: Calendar = .autoupdatingCurrent, now: @escaping () -> Date = Date.init) {
         self.settings = settings
-        self.recheckDelay = recheckDelay
         self.calendar = calendar
         self.now = now
         use(source, reload: false)
@@ -60,7 +54,6 @@ public final class ReminderStore {
         lists = []
         recentlyCompleted = []
         tickedRepeats = [:]
-        recentWrites = [:]
         undoManager.removeAllActions()
         access = source?.currentAccess() ?? .notDetermined
         source?.onChange = { [weak self] in self?.reloadSoon() }
@@ -92,9 +85,7 @@ public final class ReminderStore {
             let fetched = try await source.reminders(completedSince: calendar.startOfDay(for: now()))
             guard mine == generation else { return }
             lists = source.lists()
-            let (settled, isBehind) = settle(fetched)
-            items = settled
-            if isBehind { recheckSoon() }
+            items = fetched
             access = source.currentAccess()
         } catch {
             guard mine == generation else { return }
@@ -109,51 +100,6 @@ public final class ReminderStore {
     public func refresh() async {
         source?.refreshIfNeeded()
         await reload()
-    }
-
-    /// `fetched`, with the app's recent changes the source hasn't caught up with yet laid over
-    /// it; and whether there were any.
-    private func settle(_ fetched: [ReminderItem]) -> ([ReminderItem], Bool) {
-        let recent = now().addingTimeInterval(-settleTime)
-        recentWrites = recentWrites.filter { $0.value.at > recent }
-        var items = fetched
-        var isBehind = false
-        for (id, write) in recentWrites {
-            let index = items.firstIndex { $0.id == id }
-            switch (write.item, index) {
-            case (nil, let index?):
-                items.remove(at: index)
-                isBehind = true
-            case (let ours?, let index?) where Self.lags(items[index], behind: ours):
-                items[index] = ours
-                isBehind = true
-            case (let ours?, nil):
-                items.append(ours)
-                isBehind = true
-            default:
-                break
-            }
-        }
-        return (items, isBehind)
-    }
-
-    /// Whether `read` doesn't show our save yet. A ticked repeat has moved on when its date
-    /// changed; otherwise the tick, the date and the title must match.
-    private static func lags(_ read: ReminderItem, behind ours: ReminderItem) -> Bool {
-        if ours.isRepeating, ours.isCompleted { return !read.isCompleted && read.due == ours.due }
-        return read.isCompleted != ours.isCompleted || read.due != ours.due
-            || read.dueHasTime != ours.dueHasTime || read.title != ours.title
-    }
-
-    /// Asks the source again shortly, once it's had time to catch up.
-    private func recheckSoon() {
-        guard !isRecheckScheduled else { return }
-        isRecheckScheduled = true
-        run {
-            try? await Task.sleep(for: self.recheckDelay)
-            self.isRecheckScheduled = false
-            await self.reload()
-        }
     }
 
     private func reloadSoon() {
@@ -402,11 +348,11 @@ public final class ReminderStore {
 
     private func delete(_ item: ReminderItem, inverse: UndoSlot?) async {
         guard let source else { return }
+        generation += 1
         let target = current(item)
         items.removeAll { $0.id == target.id }
         do {
             try await source.remove(target)
-            recentWrites[target.id] = (nil, now())
             registerUndo("Delete Reminder", into: inverse) { store, back in _ = await store.insert(target, inverse: back) }
             reloadSoon()
         } catch {
@@ -430,9 +376,9 @@ public final class ReminderStore {
         guard let source else { return nil }
         var fresh = item
         fresh.id = ""
+        generation += 1
         do {
             let saved = try await source.save(fresh)
-            recentWrites[saved.id] = (saved, now())
             registerUndo("New Reminder", into: inverse) { store, back in await store.delete(saved, inverse: back) }
             items.append(saved)
             reloadSoon()
@@ -448,11 +394,11 @@ public final class ReminderStore {
     private func save(_ changed: ReminderItem, undo original: ReminderItem, actionName: String,
                       inverse: UndoSlot? = nil) async -> Bool {
         guard let source else { return false }
+        generation += 1
         replace(changed)
         do {
             let saved = try await source.save(changed)
             replace(saved)
-            recentWrites[saved.id] = (saved, now())
             registerUndo(actionName, into: inverse) { store, back in
                 if original.isCompleted != saved.isCompleted {
                     await store.toggle(saved, inverse: back)
