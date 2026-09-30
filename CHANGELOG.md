@@ -2,6 +2,15 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.17.0 — 2026-09-30
+
+### Added
+- **Notes as Markdown files** (Settings → Note → Keep notes): keep your notes as `.md` files in a folder you choose, e.g. an Obsidian vault. Each day's note is a file like `2026-09-30.md` (as Obsidian's daily notes); a single note is `Sticky Note.md`. Notes already in the app are copied there without overwriting any file, and edits made to the files elsewhere show up in the sticky.
+- **Search in Settings**: type a few letters to find any setting from every tab ("fde" finds Fade when idle).
+
+### Changed
+- **Settings has tabs**: General, Calendars, Note, Reminders, Shortcuts and Updates. The Calendar button setting moved to Calendars.
+
 ## 0.16.0 — 2026-09-30
 
 ### Added

@@ -30,7 +30,7 @@ Events with a Zoom, Meet, Teams, Webex or Jitsi link get a camera button that jo
 in the Reminders tab, to one reminder at a time (scroll over it to flip through, tick it
 off for the next), under the event on now;
 ⌃⌥S shows or hides it from any app (Settings → Shortcuts). Optionally, the stickies fade
-when left alone and come back when you point at them (Settings → Appearance → Fade when idle).
+when left alone and come back when you point at them (Settings → General → Fade when idle).
 The checklist button shows your reminders from Apple Reminders, Todoist, TickTick or the
 tasks in an Obsidian vault, either as a tab of this sticky (the default) or in their own
 sticky; the first time, it asks which source and where (Settings → Reminders changes both).
@@ -43,7 +43,9 @@ for quick, disposable thoughts — one per day by default, following the date ar
 journal:
 Markdown renders as you type, Obsidian-style — only the line you're editing shows its
 syntax, and task boxes tick with a click; LaTeX math (`$…$`, `$$…$$`) is typeset too.
-Drag its bar to resize; **Clear** empties it (⌘Z brings it back).
+Drag its bar to resize; **Clear** empties it (⌘Z brings it back). Notes can also be kept as
+Markdown files in a folder you choose, e.g. an Obsidian vault (`2026-09-30.md` for a day's note;
+Settings → Note). Settings has tabs and a search field that finds any setting from a few letters.
 Keyboard: ←/→ change day; ↑/↓ move between events (or scroll when none is selected);
 Page Up/Down scroll; Return edits the selected event; Esc deselects.
 
