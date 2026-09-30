@@ -15,9 +15,16 @@ public final class AppSettings {
         static let expandedHeight = "expandedHeight"
         static let globalHotKey = "globalHotKey"
         static let hidesFromCapture = "hidesFromScreenCapture"
+        static let fadesWhenIdle = "fadesWhenIdle"
+        static let idleFadeDelay = "idleFadeDelay"
+        static let idleFadeAmount = "idleFadeAmount"
     }
 
     public static let opacityRange: ClosedRange<Double> = 0.5...1.0
+    /// Choices for how long a sticky waits, untouched, before it fades (seconds).
+    public static let idleFadeDelays: [Double] = [5, 10, 30, 60, 120, 300, 600]
+    /// How much of a sticky fading takes away: a little to nearly all of it.
+    public static let idleFadeAmountRange: ClosedRange<Double> = 0.2...0.9
     /// Zoom levels for ⌘= / ⌘-, like a browser's.
     public static let zoomSteps: [Double] = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0]
 
@@ -41,6 +48,12 @@ public final class AppSettings {
     /// Marks the app's windows as not to be captured, so screen sharing and screenshots
     /// leave them out (where the capturing app honours it). Off by default.
     public private(set) var hidesFromScreenCapture: Bool
+    /// The stickies fade after `idleFadeDelay` seconds without the pointer over them or
+    /// typing in them, and come back when the pointer returns. Off by default.
+    public private(set) var fadesWhenIdle: Bool
+    public private(set) var idleFadeDelay: Double
+    /// 0.2 leaves a faded sticky at 80 % visible, 0.9 at 10 %.
+    public private(set) var idleFadeAmount: Double
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -53,6 +66,36 @@ public final class AppSettings {
         expandedHeight = defaults.object(forKey: Key.expandedHeight) as? Double
         globalHotKey = defaults.string(forKey: Key.globalHotKey).flatMap(GlobalHotKeyChoice.init(rawValue:)) ?? .controlOptionS
         hidesFromScreenCapture = defaults.bool(forKey: Key.hidesFromCapture)
+        fadesWhenIdle = defaults.bool(forKey: Key.fadesWhenIdle)
+        idleFadeDelay = Self.nearestIdleFadeDelay(defaults.object(forKey: Key.idleFadeDelay) as? Double ?? 30)
+        idleFadeAmount = Self.clampIdleFadeAmount(defaults.object(forKey: Key.idleFadeAmount) as? Double ?? 0.6)
+    }
+
+    public func setFadesWhenIdle(_ fades: Bool) {
+        fadesWhenIdle = fades
+        defaults.set(fades, forKey: Key.fadesWhenIdle)
+    }
+
+    /// Snaps to the nearest of `idleFadeDelays`.
+    public func setIdleFadeDelay(_ seconds: Double) {
+        idleFadeDelay = Self.nearestIdleFadeDelay(seconds)
+        defaults.set(idleFadeDelay, forKey: Key.idleFadeDelay)
+    }
+
+    public func setIdleFadeAmount(_ amount: Double) {
+        idleFadeAmount = Self.clampIdleFadeAmount(amount)
+        defaults.set(idleFadeAmount, forKey: Key.idleFadeAmount)
+    }
+
+    /// How visible a faded sticky is (1 when fading is off).
+    public var idleAlpha: Double { fadesWhenIdle ? 1 - idleFadeAmount : 1 }
+
+    private static func nearestIdleFadeDelay(_ value: Double) -> Double {
+        idleFadeDelays.min { abs($0 - value) < abs($1 - value) }!
+    }
+
+    private static func clampIdleFadeAmount(_ value: Double) -> Double {
+        min(max(value, idleFadeAmountRange.lowerBound), idleFadeAmountRange.upperBound)
     }
 
     public func setHidesFromScreenCapture(_ hides: Bool) {

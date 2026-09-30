@@ -52,6 +52,26 @@ struct SettingsView: View {
                     }
                 }
                 .help("Size of the timeline and note. In the sticky: ⌘= bigger, ⌘- smaller, ⌘0 actual size.")
+                Toggle("Fade when idle", isOn: Binding(get: { settings.fadesWhenIdle }, set: settings.setFadesWhenIdle))
+                if settings.fadesWhenIdle {
+                    Picker("Fade after", selection: Binding(get: { settings.idleFadeDelay }, set: settings.setIdleFadeDelay)) {
+                        ForEach(AppSettings.idleFadeDelays, id: \.self) { seconds in
+                            Text(Duration.seconds(seconds).formatted(.units(allowed: [.minutes, .seconds], width: .wide)))
+                                .tag(seconds)
+                        }
+                    }
+                    Slider(value: Binding(get: { settings.idleFadeAmount }, set: settings.setIdleFadeAmount),
+                           in: AppSettings.idleFadeAmountRange) {
+                        Text("Fade by")
+                    } minimumValueLabel: {
+                        Text("A little").font(.caption)
+                    } maximumValueLabel: {
+                        Text("Almost gone").font(.caption)
+                    }
+                }
+                Text("The stickies fade when the pointer isn't over them and you're not typing in them, and come back when you point at them.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle("Hide from screen sharing and screenshots", isOn: Binding(
                     get: { settings.hidesFromScreenCapture }, set: onHidesFromScreenCapture
                 ))
@@ -72,7 +92,7 @@ struct SettingsView: View {
 
             Section("Note") {
                 Picker("Show the note", selection: Binding(get: { notepad.placement }, set: onNotePlacement)) {
-                    Text("Under the timeline").tag(NotePlacement.pane)
+                    Text("Under the timeline or reminders").tag(NotePlacement.pane)
                     Text("In its own sticky").tag(NotePlacement.window)
                 }
                 Toggle("A separate note for each day", isOn: Binding(get: { notepad.isPerDay }, set: notepad.setPerDay))

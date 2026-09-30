@@ -83,6 +83,19 @@ struct AppSettingsTests {
         #expect(AppSettings(defaults: defaults).zoom == 2)
     }
 
+    @Test func idleFadingIsOffByDefaultAndPersistsSnappedAndClamped() {
+        let s = AppSettings(defaults: defaults)
+        #expect(!s.fadesWhenIdle && s.idleFadeDelay == 30 && s.idleAlpha == 1)
+        s.setFadesWhenIdle(true)
+        s.setIdleFadeDelay(50)
+        s.setIdleFadeAmount(5)
+        let reloaded = AppSettings(defaults: defaults)
+        #expect(reloaded.fadesWhenIdle && reloaded.idleFadeDelay == 60)
+        #expect(reloaded.idleFadeAmount == AppSettings.idleFadeAmountRange.upperBound)
+        reloaded.setIdleFadeAmount(0.5)
+        #expect(reloaded.idleAlpha == 0.5)
+    }
+
     @Test func compactModeAndItsRestoreHeightPersist() {
         let s = AppSettings(defaults: defaults)
         #expect(!s.isCompact && s.expandedHeight == nil)

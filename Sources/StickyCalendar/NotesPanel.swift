@@ -32,6 +32,7 @@ final class NotesPanel: FloatingPanel {
             guard let neighbour else { return panel.placeTopRight() }
             panel.setFrameOrigin(NSPoint(x: neighbour.frame.minX - panel.frame.width - 12, y: neighbour.frame.minY))
         })
+        fadeWhenIdle(following: appSettings)
         installKeyMonitor()
     }
 

@@ -1,13 +1,19 @@
 import AppKit
+import StickyCalendarCore
 import SwiftUI
 
 /// A sticky's window. Pinned: above other windows, on every Space and over full-screen
 /// apps. Unpinned: an ordinary window. Never activates the app when clicked; remembers its
-/// frame. Subclasses supply the content and their keys.
+/// frame; optionally fades when left alone (Settings → Appearance). Subclasses supply the
+/// content and their keys.
 @MainActor
 class FloatingPanel: NSPanel, NSWindowDelegate {
     private let autosaveName: String
     private let isPinned: () -> Bool
+    /// Set by `fadeWhenIdle(following:)`.
+    private var fadeSettings: AppSettings?
+    private var fadeTimer: Timer?
+    private var isPointerInside = false
 
     init(autosaveName: String, size: NSSize, minSize: NSSize, isPinned: @escaping () -> Bool) {
         self.autosaveName = autosaveName
@@ -41,7 +47,16 @@ class FloatingPanel: NSPanel, NSWindowDelegate {
         // title-bar strip as a safe area and extends scroll views up under the header,
         // where they draw over it and swallow clicks on its buttons.
         hosting.safeAreaRegions = []
-        contentView = hosting
+        // Wrapped, so the pointer entering and leaving can be tracked (for fading).
+        let container = PointerTrackingView()
+        hosting.frame = container.bounds
+        hosting.autoresizingMask = [.width, .height]
+        container.addSubview(hosting)
+        container.onPointer = { [weak self] inside in
+            self?.isPointerInside = inside
+            self?.wake()
+        }
+        contentView = container
         if !setFrameUsingName(autosaveName) { (placement ?? { $0.placeTopRight() })(self) }
         setFrameAutosaveName(autosaveName)
     }
@@ -58,12 +73,67 @@ class FloatingPanel: NSPanel, NSWindowDelegate {
            !hit.isDescendant(of: editor.enclosingScrollView ?? editor) {
             makeFirstResponder(nil)
         }
+        if event.type == .keyDown { wake() } // typing with the pointer elsewhere
         super.sendEvent(event)
     }
 
     /// An unpinned panel is raised explicitly, since clicking it doesn't activate the app.
     func windowDidBecomeKey(_ notification: Notification) {
         if !isPinned() { orderFrontRegardless() }
+        wake()
+    }
+
+    override func orderFrontRegardless() {
+        super.orderFrontRegardless()
+        wake()
+    }
+
+    // MARK: Fading when idle
+
+    /// Fades after `settings.idleFadeDelay` seconds without the pointer over the window or
+    /// typing in it, by `settings.idleFadeAmount`; back at once when the pointer returns.
+    func fadeWhenIdle(following settings: AppSettings) {
+        fadeSettings = settings
+        isPointerInside = frame.contains(NSEvent.mouseLocation)
+        followFadeSettings()
+        wake()
+    }
+
+    private func followFadeSettings() {
+        guard let settings = fadeSettings else { return }
+        withObservationTracking {
+            _ = (settings.fadesWhenIdle, settings.idleFadeDelay, settings.idleFadeAmount)
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.wake()
+                self?.followFadeSettings()
+            }
+        }
+    }
+
+    /// Fully visible again; then, when fading is on and the pointer isn't over it, counts down.
+    private func wake() {
+        fadeTimer?.invalidate()
+        fadeTimer = nil
+        if alphaValue < 1 {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                animator().alphaValue = 1
+            }
+        }
+        guard let settings = fadeSettings, settings.fadesWhenIdle, !isPointerInside else { return }
+        fadeTimer = Timer.scheduledTimer(withTimeInterval: settings.idleFadeDelay, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.fade() }
+        }
+    }
+
+    private func fade() {
+        guard let settings = fadeSettings, settings.fadesWhenIdle,
+              !frame.contains(NSEvent.mouseLocation) else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 1.5
+            animator().alphaValue = settings.idleAlpha
+        }
     }
 
     func applyPinned() {
@@ -85,4 +155,23 @@ class FloatingPanel: NSPanel, NSWindowDelegate {
         guard let visible = NSScreen.main?.visibleFrame else { return }
         setFrameOrigin(NSPoint(x: visible.maxX - frame.width - inset, y: visible.maxY - frame.height - 20))
     }
+}
+
+/// The window's content view: tells when the pointer enters or leaves it, even while the
+/// app is in the background.
+private final class PointerTrackingView: NSView {
+    var onPointer: ((Bool) -> Void)?
+    private var area: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let area { removeTrackingArea(area) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        self.area = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { onPointer?(true) }
+    override func mouseExited(with event: NSEvent) { onPointer?(false) }
 }

@@ -33,6 +33,7 @@ final class RemindersPanel: FloatingPanel {
             panel.setFrameOrigin(NSPoint(x: neighbour.frame.minX - panel.frame.width - 12,
                                          y: neighbour.frame.maxY - panel.frame.height))
         })
+        fadeWhenIdle(following: appSettings)
         installKeyMonitor()
     }
 

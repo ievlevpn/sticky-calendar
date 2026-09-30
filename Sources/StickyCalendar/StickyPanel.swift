@@ -51,6 +51,7 @@ final class StickyPanel: FloatingPanel {
         appliedCompact = isCompact
         if isCompact { applyCompactSize(animate: false) }
         followCompactChanges()
+        fadeWhenIdle(following: settings)
         installKeyMonitor()
     }
 
