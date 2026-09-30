@@ -254,27 +254,11 @@ struct RemindersView: View {
         .padding(.vertical, 3 * zoom)
         .contentShape(Rectangle())
         .onTapGesture { if writable { editingID = item.id } }
-        .popover(isPresented: Binding(get: { editingID == item.id }, set: { if !$0 { editingID = nil } }),
-                 arrowEdge: .leading) {
-            ReminderEditor(item: item, listTitle: list?.title ?? "", canEditNotes: store.canEditNotes) { result in
-                Task {
-                    await store.edit(item, title: result.title, due: result.due, dueHasTime: result.hasTime,
-                                     priority: result.priority, notes: result.notes)
-                }
-            } onDelete: {
-                editingID = nil
-                Task { await store.delete(item) }
-            }
-        }
+        .reminderEditor(item, store: store,
+                        isPresented: Binding(get: { editingID == item.id }, set: { if !$0 { editingID = nil } }),
+                        arrowEdge: .leading)
         .contextMenu {
-            Button("Edit…") { editingID = item.id }.disabled(!writable)
-            Button(item.isCompleted ? "Mark as Not Done" : "Mark as Done") { Task { await store.toggle(item) } }.disabled(!writable)
-            Divider()
-            Button("Delete", role: .destructive) { Task { await store.delete(item) } }.disabled(!writable)
-            Divider()
-            Button("Open in \(settings.provider?.name ?? "Reminders")") {
-                if let url = store.link(for: item) { NSWorkspace.shared.open(url) }
-            }
+            ReminderMenu(item: item, store: store, settings: settings, isWritable: writable) { editingID = item.id }
         }
     }
 
@@ -335,23 +319,33 @@ struct RemindersView: View {
     /// The time for today's timed ones; the day for others ("Tomorrow", "Mon", "26 Sep");
     /// nothing for an untimed one in Today. Late when overdue (or past its time today).
     private func dueLabel(_ item: ReminderItem, in section: ReminderSection) -> (text: String, isLate: Bool)? {
+        // A repeating one ticked here: when it comes back.
+        if let next = item.nextDue { return ("Next " + dayText(next, hasTime: item.dueHasTime), false) }
         guard let due = item.due else { return nil }
         let calendar = Calendar.autoupdatingCurrent
         let now = Date()
         let isLate = !item.isCompleted && (item.dueHasTime ? due < now : due < calendar.startOfDay(for: now))
-        let time = due.formatted(date: .omitted, time: .shortened)
         if calendar.isDateInToday(due) {
+            let time = due.formatted(date: .omitted, time: .shortened)
             return item.dueHasTime ? (time, isLate) : (section.kind == .today ? nil : ("Today", false))
         }
+        return (dayText(due, hasTime: item.dueHasTime), isLate)
+    }
+
+    /// "Tomorrow 09:00", "Yesterday", "Mon", "26 Sep 14:00".
+    private func dayText(_ date: Date, hasTime: Bool) -> String {
+        let calendar = Calendar.autoupdatingCurrent
+        let now = Date()
         let day: String
-        if calendar.isDateInTomorrow(due) { day = "Tomorrow" }
-        else if calendar.isDateInYesterday(due) { day = "Yesterday" }
-        else if let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: due).day, (0..<7).contains(days) {
-            day = due.formatted(.dateTime.weekday(.abbreviated))
+        if calendar.isDateInToday(date) { day = "Today" }
+        else if calendar.isDateInTomorrow(date) { day = "Tomorrow" }
+        else if calendar.isDateInYesterday(date) { day = "Yesterday" }
+        else if let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: date).day, (0..<7).contains(days) {
+            day = date.formatted(.dateTime.weekday(.abbreviated))
         } else {
-            day = due.formatted(.dateTime.day().month(.abbreviated))
+            day = date.formatted(.dateTime.day().month(.abbreviated))
         }
-        return (item.dueHasTime ? "\(day) \(time)" : day, isLate)
+        return hasTime ? "\(day) \(date.formatted(date: .omitted, time: .shortened))" : day
     }
 }
 

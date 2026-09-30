@@ -28,6 +28,8 @@ struct TodoistSourceTests {
         case ("GET", "/api/v1/tasks/completed/by_completion_date"):
             return (200, ["items": [
                 ["id": "t4", "content": "Invoice", "project_id": "p2", "checked": true, "completed_at": "2026-09-28T08:00:00Z"],
+                // A repeating task's earlier completion: it's still open (t2), so left out.
+                ["id": "t2", "content": "Standup", "project_id": "p2", "checked": true, "completed_at": "2026-09-27T09:40:00Z"],
             ], "next_cursor": NSNull()])
         case ("POST", "/api/v1/tasks"):
             return (200, ["id": "t9", "content": call.body["content"] ?? "", "project_id": call.body["project_id"] ?? "",
@@ -46,9 +48,17 @@ struct TodoistSourceTests {
         #expect(items[1].due == at(9, 30) && items[1].dueHasTime)
         #expect(items[2].due == nil)
         #expect(items[3].isCompleted && items[3].completionDate == at(8))
+        #expect(items.map(\.isRepeating) == [false, true, false, false])
         #expect(source.lists().map(\.title) == ["Inbox", "Work"])
         #expect(source.defaultListID() == "p1")
         #expect(source.currentAccess() == .granted)
+    }
+
+    @Test func completedTasksUseTheDefaultPageSize() async throws {
+        let (session, log) = StubHTTP.session(Self.handler)
+        _ = try await TodoistSource(token: "t", session: session, calendar: utc).reminders(completedSince: at(0))
+        let completed = log().filter { $0.path.hasSuffix("/by_completion_date") }
+        #expect(completed.count == 1 && completed[0].query["limit"] == nil)
     }
 
     @Test func readsPriorityAndDescription() async throws {
@@ -115,7 +125,7 @@ struct TickTickSourceTests {
         case ("GET", "/open/v1/project/w1/data"):
             return (200, ["tasks": [
                 ["id": "b", "projectId": "w1", "title": "Standup", "status": 0, "isAllDay": false,
-                 "priority": 3, "content": "room 4",
+                 "priority": 3, "content": "room 4", "repeatFlag": "RRULE:FREQ=DAILY;INTERVAL=1",
                  "dueDate": "2026-09-28T09:30:00.000+0000", "timeZone": "UTC"],
             ]])
         default:
@@ -131,6 +141,7 @@ struct TickTickSourceTests {
         #expect(items[0].due == at(0) && !items[0].dueHasTime)     // 28 Sep, whatever the zone
         #expect(items[1].due == at(9, 30) && items[1].dueHasTime)
         #expect(items[1].priority == .medium && items[1].notes == "room 4")
+        #expect(items.map(\.isRepeating) == [false, true])
         #expect(source.lists().map(\.title) == ["Inbox", "Work"])   // the closed project is left out
         #expect(source.defaultListID() == "inbox123")
         #expect(!log().contains { $0.path.contains("/old/") })

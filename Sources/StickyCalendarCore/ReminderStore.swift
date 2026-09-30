@@ -25,6 +25,9 @@ public final class ReminderStore {
     /// Ticked here since the last day change: they stay in view, struck through, so a
     /// mis-click can be seen and undone.
     private var recentlyCompleted: Set<String> = []
+    /// Repeating ones ticked here, as ticked. The source has already moved each to its next
+    /// date and left it open; until the day changes they're shown ticked instead.
+    private var tickedRepeats: [String: ReminderItem] = [:]
     /// Bumped on every reload and source change; an older fetch must not overwrite a newer one.
     @ObservationIgnored private var generation = 0
     /// Changes still being saved (undo and redo run as tasks); see `idle()`.
@@ -47,6 +50,7 @@ public final class ReminderStore {
         items = []
         lists = []
         recentlyCompleted = []
+        tickedRepeats = [:]
         undoManager.removeAllActions()
         access = source?.currentAccess() ?? .notDetermined
         source?.onChange = { [weak self] in self?.reloadSoon() }
@@ -115,6 +119,7 @@ public final class ReminderStore {
     /// A new day: yesterday's ticks no longer need to linger.
     public func handleDayChange() {
         recentlyCompleted = []
+        tickedRepeats = [:]
         reloadSoon()
     }
 
@@ -168,9 +173,23 @@ public final class ReminderStore {
     /// ticked just now.
     private var shownItems: [ReminderItem] {
         let hidden = settings.hiddenListIDs
-        return items.filter { item in
+        return displayedItems.filter { item in
             !hidden.contains(item.listID)
                 && (!item.isCompleted || settings.showsCompleted || recentlyCompleted.contains(item.id))
+        }
+    }
+
+    /// `items`, with each repeating one ticked here shown ticked (and when it's due next) in
+    /// place of its next occurrence, unless that is still due today or earlier.
+    private var displayedItems: [ReminderItem] {
+        guard !tickedRepeats.isEmpty else { return items }
+        let startOfTomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now()))!
+        return items.map { item in
+            guard let ticked = tickedRepeats[item.id], !item.isCompleted,
+                  let next = item.due, next >= startOfTomorrow else { return item }
+            var shown = ticked
+            shown.nextDue = next
+            return shown
         }
     }
 
@@ -199,22 +218,50 @@ public final class ReminderStore {
     /// Ticks or unticks.
     public func toggle(_ item: ReminderItem) async {
         let original = current(item)
+        if original.isCompleted, tickedRepeats[original.id] != nil {
+            return await untickRepeat(original)
+        }
         var changed = original
         changed.isCompleted.toggle()
         changed.completionDate = changed.isCompleted ? now() : nil
-        if changed.isCompleted { recentlyCompleted.insert(item.id) }
+        if changed.isCompleted {
+            recentlyCompleted.insert(item.id)
+            if changed.isRepeating { tickedRepeats[item.id] = changed }
+        }
         await save(changed, undo: original, actionName: changed.isCompleted ? "Complete Reminder" : "Uncomplete Reminder")
+    }
+
+    /// The source moved a ticked repeating one on to its next date, so unticking puts back
+    /// the date it had (reopening it would do nothing; ticking again would skip another).
+    private func untickRepeat(_ shown: ReminderItem) async {
+        guard let ticked = tickedRepeats.removeValue(forKey: shown.id) else { return }
+        // Just ticked, not reloaded yet: learn what the source made of it first.
+        if items.first(where: { $0.id == shown.id })?.isCompleted == true { await reload() }
+        var changed = items.first { $0.id == shown.id } ?? shown
+        changed.isCompleted = false
+        changed.completionDate = nil
+        changed.nextDue = nil
+        changed.due = ticked.due
+        changed.dueHasTime = ticked.dueHasTime
+        if !(await save(changed, undo: shown, actionName: "Uncomplete Reminder")) {
+            tickedRepeats[shown.id] = ticked
+        }
     }
 
     /// The editor's changes: title, due date and time, importance, notes.
     public func edit(_ item: ReminderItem, title: String, due: Date?, dueHasTime: Bool,
                      priority: ReminderPriority, notes: String?) async {
-        let original = current(item)
+        let shown = current(item)
+        // A ticked repeat is shown ticked but open at the source: edit that, untouched dates stay.
+        let original = tickedRepeats[shown.id] == nil ? shown
+            : items.first { $0.id == shown.id && !$0.isCompleted } ?? shown
         var changed = original
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { changed.title = trimmed }
-        changed.due = due
-        changed.dueHasTime = due != nil && dueHasTime
+        if due != shown.due || dueHasTime != shown.dueHasTime {
+            changed.due = due
+            changed.dueHasTime = due != nil && dueHasTime
+        }
         changed.priority = priority
         if source?.canEditNotes ?? false {
             let text = notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -222,6 +269,17 @@ public final class ReminderStore {
         }
         guard changed != original else { return }
         await save(changed, undo: original, actionName: "Edit Reminder")
+    }
+
+    /// Pushes the due date back (see `Postpone`).
+    public func postpone(_ item: ReminderItem, _ option: Postpone) async {
+        let original = current(item)
+        let due = option.due(from: original.due, hasTime: original.dueHasTime, now: now(), calendar: calendar)
+        var changed = original
+        changed.due = due.date
+        changed.dueHasTime = due.hasTime
+        guard changed != original else { return }
+        await save(changed, undo: original, actionName: "Postpone Reminder")
     }
 
     /// Reminders matching `query` loosely, across every visible list (whatever the mode),
@@ -314,8 +372,9 @@ public final class ReminderStore {
     }
 
     /// Shows the change at once, then saves it; puts the original back if saving fails.
-    private func save(_ changed: ReminderItem, undo original: ReminderItem, actionName: String) async {
-        guard let source else { return }
+    @discardableResult
+    private func save(_ changed: ReminderItem, undo original: ReminderItem, actionName: String) async -> Bool {
+        guard let source else { return false }
         replace(changed)
         do {
             let saved = try await source.save(changed)
@@ -333,9 +392,11 @@ public final class ReminderStore {
             }
             undoManager.setActionName(actionName)
             reloadSoon()
+            return true
         } catch {
             replace(original)
             fail(error)
+            return false
         }
     }
 
@@ -345,7 +406,7 @@ public final class ReminderStore {
 
     /// The latest known state of `item` (a view may hold an older copy).
     private func current(_ item: ReminderItem) -> ReminderItem {
-        items.first { $0.id == item.id } ?? item
+        displayedItems.first { $0.id == item.id } ?? item
     }
 
     private func fail(_ error: Error) {

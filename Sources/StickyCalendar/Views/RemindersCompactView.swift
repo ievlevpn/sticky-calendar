@@ -4,7 +4,8 @@ import SwiftUI
 /// The Reminders tab in compact mode (design 3c): the header, then one reminder at a time.
 /// Scroll over the reminder, or use the arrows that appear on hover, to flip through them;
 /// tick it off and the next slides in. While an event is on, it sits above the reminder as
-/// in compact calendar (design 3d). Clicking the row expands the tab again.
+/// in compact calendar (design 3d). Clicking the reminder opens its editor and right-clicking
+/// its menu, as in the full list; with no reminder showing, a click expands the tab again.
 struct RemindersCompactView<Header: View>: View {
     let store: ReminderStore
     let calendarStore: CalendarStore
@@ -20,6 +21,8 @@ struct RemindersCompactView<Header: View>: View {
     /// Where the reminder showing was, so ticking it off shows the one that came after it.
     @State private var lastIndex = 0
     @State private var isHovering = false
+    /// The reminder whose editor popover is open.
+    @State private var editingID: String?
 
     private let rowHeight: CGFloat = 40
     private let headerHeight: CGFloat = 32
@@ -92,13 +95,22 @@ struct RemindersCompactView<Header: View>: View {
         .frame(maxWidth: .infinity)
         .frame(height: rowHeight)
         .contentShape(Rectangle())
-        .onTapGesture(perform: onExpand)
+        .onTapGesture {
+            guard let item = index.map({ items[$0] }) else { return onExpand() }
+            if isWritable(item) { editingID = item.id }
+        }
         .onHover { isHovering = $0 }
         .overlay(ScrollWheelCatcher { steps in
             if let index { withAnimation(.easeOut(duration: 0.15)) { show(index + steps, of: items) } }
         })
-        .help("Scroll to flip through reminders. Click to expand (⌘M).")
+        .modifier(ReminderActionsModifier(item: index.map { items[$0] }, store: store, settings: settings,
+                                          isWritable: index.map { isWritable(items[$0]) } ?? false,
+                                          editingID: $editingID))
+        .help(index == nil ? "Click to expand (⌘M)."
+                           : "Click to edit, right-click for more. Scroll to flip through reminders.")
     }
+
+    private func isWritable(_ item: ReminderItem) -> Bool { store.listInfo(id: item.listID)?.isWritable ?? false }
 
     private func reminder(_ item: ReminderItem) -> some View {
         let list = store.listInfo(id: item.listID)
@@ -188,5 +200,30 @@ struct RemindersCompactView<Header: View>: View {
             day = due.formatted(.dateTime.day().month(.abbreviated))
         }
         return (isLate ? "Overdue · \(day)" : day, isLate)
+    }
+}
+
+/// The showing reminder's editor and right-click menu; nothing when there's no reminder.
+private struct ReminderActionsModifier: ViewModifier {
+    let item: ReminderItem?
+    let store: ReminderStore
+    let settings: ReminderSettings
+    let isWritable: Bool
+    @Binding var editingID: String?
+
+    func body(content: Content) -> some View {
+        if let item {
+            content
+                .reminderEditor(item, store: store,
+                                isPresented: Binding(get: { editingID == item.id }, set: { if !$0 { editingID = nil } }),
+                                arrowEdge: .bottom)
+                .contextMenu {
+                    ReminderMenu(item: item, store: store, settings: settings, isWritable: isWritable) {
+                        editingID = item.id
+                    }
+                }
+        } else {
+            content
+        }
     }
 }

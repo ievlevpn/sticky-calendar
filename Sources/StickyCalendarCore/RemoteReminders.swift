@@ -137,11 +137,15 @@ public final class TodoistSource: ReminderSource {
             let projectRows = try await pages("projects")
             var items = try await pages("tasks").compactMap(item)
             let until = RemoteDates.utcString(Date().addingTimeInterval(60))
+            // Its own page size: the docs give no maximum for this one, so keep the default.
             let done = try? await pages("tasks/completed/by_completion_date", key: "items", query: [
                 URLQueryItem(name: "since", value: RemoteDates.utcString(completedSince)),
                 URLQueryItem(name: "until", value: until),
-            ])
-            items += (done ?? []).compactMap(item).map { var i = $0; i.isCompleted = true; return i }
+            ], limit: nil)
+            // A repeating task completed earlier is still open: keep only the open one.
+            let open = Set(items.map(\.id))
+            items += (done ?? []).compactMap(item).filter { !open.contains($0.id) }
+                .map { var i = $0; i.isCompleted = true; return i }
             projects = projectRows.compactMap { row in
                 guard let id = row["id"] as? String, let name = row["name"] as? String else { return nil }
                 if row["inbox_project"] as? Bool == true { inboxID = id }
@@ -200,11 +204,12 @@ public final class TodoistSource: ReminderSource {
     }
 
     /// Every page of a paginated list.
-    private func pages(_ path: String, key: String = "results", query: [URLQueryItem] = []) async throws -> [[String: Any]] {
+    private func pages(_ path: String, key: String = "results", query: [URLQueryItem] = [],
+                       limit: Int? = 200) async throws -> [[String: Any]] {
         var rows: [[String: Any]] = []
         var cursor: String?
         repeat {
-            var q = query + [URLQueryItem(name: "limit", value: "200")]
+            var q = query + (limit.map { [URLQueryItem(name: "limit", value: "\($0)")] } ?? [])
             if let cursor { q.append(URLQueryItem(name: "cursor", value: cursor)) }
             let page = try await client.get(path, query: q) as? [String: Any] ?? [:]
             rows += page[key] as? [[String: Any]] ?? []
@@ -217,7 +222,8 @@ public final class TodoistSource: ReminderSource {
         guard let id = row["id"] as? String, let title = row["content"] as? String else { return nil }
         var due: Date?
         var hasTime = false
-        if let dueRow = row["due"] as? [String: Any], let text = dueRow["date"] as? String {
+        let dueRow = row["due"] as? [String: Any]
+        if let dueRow, let text = dueRow["date"] as? String {
             if text.count <= 10 {
                 due = RemoteDates.day(text, in: calendar.timeZone)
             } else {
@@ -231,7 +237,8 @@ public final class TodoistSource: ReminderSource {
             id: id, title: title, listID: row["project_id"] as? String ?? "", due: due, dueHasTime: hasTime,
             isCompleted: row["checked"] as? Bool ?? false, completionDate: completedAt,
             notes: description?.isEmpty == false ? description : nil,
-            priority: Self.priority(todoist: row["priority"] as? Int ?? 1)
+            priority: Self.priority(todoist: row["priority"] as? Int ?? 1),
+            isRepeating: dueRow?["is_recurring"] as? Bool ?? false
         )
     }
 
@@ -385,7 +392,8 @@ public final class TickTickSource: ReminderSource {
             isCompleted: status != 0,
             completionDate: (row["completedTime"] as? String).flatMap { RemoteDates.dateTime($0, floating: zone) },
             notes: content?.isEmpty == false ? content : nil,
-            priority: Self.priority(tickTick: row["priority"] as? Int ?? 0)
+            priority: Self.priority(tickTick: row["priority"] as? Int ?? 0),
+            isRepeating: (row["repeatFlag"] as? String).map { !$0.isEmpty } ?? false
         )
     }
 

@@ -64,6 +64,7 @@ struct ReminderEditor: View {
             if hasDate {
                 Toggle("Time", isOn: $hasTime.animation())
             }
+            postponeRow
             HStack {
                 Text("Importance").lineLimit(1).fixedSize()
                 Spacer(minLength: 8)
@@ -103,6 +104,37 @@ struct ReminderEditor: View {
         .padding(14)
         .frame(width: 290)
         .onDisappear(perform: save)
+    }
+
+    /// "Postpone: +1 h · +3 h · Tomorrow · Next week". Fills in the date; closing saves it.
+    /// The word gives way to a clock when the buttons need the room.
+    private var postponeRow: some View {
+        ViewThatFits(in: .horizontal) {
+            postponeButtons { Text("Postpone").lineLimit(1).fixedSize() }
+            postponeButtons { Image(systemName: "clock.arrow.circlepath").foregroundStyle(.secondary).help("Postpone") }
+        }
+    }
+
+    private func postponeButtons(@ViewBuilder label: () -> some View) -> some View {
+        HStack(spacing: 4) {
+            label()
+            Spacer(minLength: 4)
+            ForEach(Postpone.allCases, id: \.self) { option in
+                Button(option.shortTitle) { postpone(option) }
+                    .controlSize(.small)
+                    .fixedSize()
+                    .help(option.title)
+            }
+        }
+    }
+
+    private func postpone(_ option: Postpone) {
+        let due = option.due(from: hasDate ? date : nil, hasTime: hasDate && hasTime, now: Date(), calendar: .current)
+        withAnimation {
+            hasDate = true
+            hasTime = due.hasTime
+            date = due.date
+        }
     }
 
     private func save() {

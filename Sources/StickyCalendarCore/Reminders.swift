@@ -27,10 +27,15 @@ public struct ReminderItem: Identifiable, Equatable, Sendable {
     public var completionDate: Date?
     public var notes: String?
     public var priority: ReminderPriority
+    /// It repeats: ticking it moves it to its next date and leaves it open.
+    public var isRepeating: Bool
+    /// A repeating one ticked here, still shown ticked: when it's due next.
+    public var nextDue: Date?
 
     public init(
         id: String = "", title: String, listID: String, due: Date? = nil, dueHasTime: Bool = false,
-        isCompleted: Bool = false, completionDate: Date? = nil, notes: String? = nil, priority: ReminderPriority = .none
+        isCompleted: Bool = false, completionDate: Date? = nil, notes: String? = nil, priority: ReminderPriority = .none,
+        isRepeating: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -41,6 +46,7 @@ public struct ReminderItem: Identifiable, Equatable, Sendable {
         self.completionDate = completionDate
         self.notes = notes
         self.priority = priority
+        self.isRepeating = isRepeating
     }
 
     public var isNew: Bool { id.isEmpty }

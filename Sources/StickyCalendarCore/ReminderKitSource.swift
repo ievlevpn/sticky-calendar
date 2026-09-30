@@ -152,7 +152,8 @@ public final class ReminderKitSource: ReminderSource {
             isCompleted: reminder.isCompleted,
             completionDate: reminder.completionDate,
             notes: reminder.notes.flatMap { $0.isEmpty ? nil : $0 },
-            priority: priority(reminder.priority)
+            priority: priority(reminder.priority),
+            isRepeating: reminder.hasRecurrenceRules
         )
     }
 

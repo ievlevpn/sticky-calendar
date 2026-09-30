@@ -14,6 +14,8 @@ final class FakeReminderSource: ReminderSource {
     var stored: [ReminderItem] = []
     var failNextSave = false
     var canEditNotes = true
+    /// Repeat daily, as Todoist's do: completing one moves it to the next day, still open.
+    var repeatingIDs: Set<String> = []
     private var nextID = 1
 
     func currentAccess() -> CalendarAccess { access }
@@ -37,6 +39,11 @@ final class FakeReminderSource: ReminderSource {
             stored.append(saved)
         } else {
             guard let i = stored.firstIndex(where: { $0.id == item.id }) else { throw EventSourceError.notFound }
+            // Like TodoistSource: answers with what it sent, whatever the server made of it.
+            if repeatingIDs.contains(item.id), item.isCompleted, !stored[i].isCompleted {
+                stored[i].due = stored[i].due.map { $0.addingTimeInterval(86400) }
+                return saved
+            }
             stored[i] = saved
         }
         return saved
