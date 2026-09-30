@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.21.1 — 2026-09-30
+
+### Fixed
+- **Redo works for reminders.** After ⌘Z on a reminder change (ticking, editing, postponing, adding or deleting), ⇧⌘Z did nothing, and a second ⌘Z redid the change instead of undoing further. Undo and redo now step back and forth as expected.
+
 ## 0.21.0 — 2026-09-30
 
 ### Added
