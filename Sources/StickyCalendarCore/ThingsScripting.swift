@@ -57,12 +57,12 @@ public struct ThingsSnapshot: Decodable, Equatable, Sendable {
 
     public static func decode(_ json: String) throws -> ThingsSnapshot {
         let decoder = JSONDecoder()
-        let withFraction = ISO8601DateFormatter()
-        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let plain = ISO8601DateFormatter()
+        // Format styles are values, safe to use from the decoder's closure.
+        let withFraction = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+        let plain = Date.ISO8601FormatStyle()
         decoder.dateDecodingStrategy = .custom { decoder in
             let text = try decoder.singleValueContainer().decode(String.self)
-            guard let date = withFraction.date(from: text) ?? plain.date(from: text) else {
+            guard let date = (try? withFraction.parse(text)) ?? (try? plain.parse(text)) else {
                 throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: text))
             }
             return date

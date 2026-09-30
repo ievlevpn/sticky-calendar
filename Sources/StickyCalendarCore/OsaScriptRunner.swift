@@ -47,8 +47,8 @@ public struct OsaScriptRunner: Sendable {
         }
         try process.run()
         // Read while it runs: a full pipe would otherwise stall it.
-        let out = Task.detached { output.fileHandleForReading.readDataToEndOfFile() }
-        let err = Task.detached { errors.fileHandleForReading.readDataToEndOfFile() }
+        let out = Self.readToEnd(output.fileHandleForReading)
+        let err = Self.readToEnd(errors.fileHandleForReading)
         // A process that has already exited must give an error here, not kill the app with SIGPIPE.
         _ = fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
         do {
@@ -92,6 +92,19 @@ public struct OsaScriptRunner: Sendable {
             throw Self.failure(from: message)
         }
         return text
+    }
+
+    /// Reads to the end on a dispatch queue. A blocking read on Swift's shared concurrency
+    /// threads would hold one for as long as the script runs; a few hung scripts could take
+    /// them all, and then nothing, not even the time limit, would get to run.
+    private static func readToEnd(_ handle: FileHandle) -> Task<Data, Never> {
+        Task {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global(qos: .utility).async {
+                    continuation.resume(returning: handle.readDataToEndOfFile())
+                }
+            }
+        }
     }
 
     /// "execution error: Error: Not authorized to send Apple events to Things3. (-1743)"
