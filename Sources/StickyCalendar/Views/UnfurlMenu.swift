@@ -24,7 +24,8 @@ struct UnfurlMenu: View {
 
     @State private var isLocked = false
     @State private var hovered: String?
-    @State private var pointerInside = false
+    @State private var overButton = false
+    @State private var overCapsule = false
     @State private var closing: Task<Void, Never>?
 
     private static let itemSize: CGFloat = 24
@@ -51,7 +52,7 @@ struct UnfurlMenu: View {
             .accessibilityLabel("More")
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { toggleLock() }
-            .onHover(perform: pointer)
+            .onHover { overButton = $0; pointerMoved() }
             .background(alignment: .trailing) { capsule }
             .overlay(alignment: .topTrailing) { label }
     }
@@ -75,7 +76,7 @@ struct UnfurlMenu: View {
         .frame(width: capsuleWidth, height: 28, alignment: .trailing)
         .offset(x: 4) // overhangs the ••• button a little, as in the design
         .allowsHitTesting(isOpen)
-        .onHover(perform: pointer)
+        .onHover { overCapsule = $0; pointerMoved() }
     }
 
     private func button(_ item: UnfurlItem, index: Int) -> some View {
@@ -128,12 +129,15 @@ struct UnfurlMenu: View {
         .allowsHitTesting(false)
     }
 
-    /// Opens while the pointer is over the button or the capsule; closes shortly after it
-    /// leaves both (unless locked open).
-    private func pointer(_ inside: Bool) {
-        pointerInside = inside
+    /// Only the ••• button opens the menu. The capsule's area spans much of the header even
+    /// while it's hidden, so it only keeps an open menu open.
+    private var pointerInside: Bool { overButton || (isOpen && overCapsule) }
+
+    /// Opens while the pointer is over the button (or the open capsule); closes shortly after
+    /// it leaves both (unless locked open).
+    private func pointerMoved() {
         closing?.cancel()
-        if inside {
+        if pointerInside {
             isOpen = true
         } else {
             closing = Task { @MainActor in
