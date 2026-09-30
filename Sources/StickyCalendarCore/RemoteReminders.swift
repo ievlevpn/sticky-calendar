@@ -68,6 +68,30 @@ public enum ReminderTokens {
     }
 }
 
+/// What a remote source last knew of each task, to send only what a save changes. A read
+/// soon after a save may not show it yet (Todoist lags), so for a little while what was
+/// saved counts over what was read: else ticking and then unticking would send no reopen.
+struct KnownTasks {
+    private var items: [String: ReminderItem] = [:]
+    private var savedAt: [String: Date] = [:]
+    private let settleTime: TimeInterval = 10
+
+    subscript(id: String) -> ReminderItem? { items[id] }
+
+    mutating func saved(_ item: ReminderItem) {
+        items[item.id] = item
+        savedAt[item.id] = Date()
+    }
+
+    mutating func read(_ fetched: [ReminderItem]) {
+        let recent = Date().addingTimeInterval(-settleTime)
+        savedAt = savedAt.filter { $0.value > recent }
+        var next = Dictionary(fetched.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        for id in savedAt.keys { next[id] = items[id] }
+        items = next
+    }
+}
+
 /// Parsing shared by the remote sources.
 enum RemoteDates {
     static func day(_ text: String, in zone: TimeZone) -> Date? {
@@ -114,7 +138,7 @@ public final class TodoistSource: ReminderSource {
     private var inboxID: String?
     private var rejected = false
     /// The last known state of each task, to tell what a save changes.
-    private var known: [String: ReminderItem] = [:]
+    private var known = KnownTasks()
 
     public static let tokenAccount = "todoist"
     public static let tokenPage = URL(string: "https://app.todoist.com/app/settings/integrations/developer")!
@@ -151,7 +175,7 @@ public final class TodoistSource: ReminderSource {
                 if row["inbox_project"] as? Bool == true { inboxID = id }
                 return ReminderListInfo(id: id, title: name, color: Self.color(row["color"] as? String))
             }
-            known = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            known.read(items)
             return items
         }
     }
@@ -176,7 +200,7 @@ public final class TodoistSource: ReminderSource {
             if before?.isCompleted != item.isCompleted {
                 try await client.send("POST", "tasks/\(item.id)/\(item.isCompleted ? "close" : "reopen")", body: nil)
             }
-            known[item.id] = item
+            known.saved(item)
             return item
         }
     }
@@ -286,7 +310,7 @@ public final class TickTickSource: ReminderSource {
     private var projects: [ReminderListInfo] = []
     private var inboxID = "inbox"
     private var rejected = false
-    private var known: [String: ReminderItem] = [:]
+    private var known = KnownTasks()
 
     public static let tokenAccount = "ticktick"
     public static let tokenPage = URL(string: "https://ticktick.com/webapp/#settings/account")!
@@ -322,7 +346,7 @@ public final class TickTickSource: ReminderSource {
             }
             lists.insert(ReminderListInfo(id: inboxID, title: "Inbox", color: RGBA(hex: 0x4772FA)), at: 0)
             projects = lists
-            known = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            known.read(items)
             return items
         }
     }
@@ -349,7 +373,7 @@ public final class TickTickSource: ReminderSource {
             // Reopening isn't a documented call; setting the status back is what TickTick's apps do.
             if before?.isCompleted == true, !item.isCompleted { body["status"] = 0 }
             if body.count > 2 { try await client.send("POST", "task/\(item.id)", body: body) }
-            known[item.id] = item
+            known.saved(item)
             return item
         }
     }

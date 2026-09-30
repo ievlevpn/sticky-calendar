@@ -54,6 +54,18 @@ struct TodoistSourceTests {
         #expect(source.currentAccess() == .granted)
     }
 
+    @Test func aReadThatLagsBehindAClosingDoesNotStopTheReopen() async throws {
+        let (session, log) = StubHTTP.session(Self.handler)
+        let source = TodoistSource(token: "t", session: session, calendar: utc)
+        var milk = try await source.reminders(completedSince: at(0))[0]
+        milk.isCompleted = true
+        milk = try await source.save(milk)
+        _ = try await source.reminders(completedSince: at(0))   // still lists it open
+        milk.isCompleted = false
+        _ = try await source.save(milk)
+        #expect(log().filter { $0.method == "POST" }.map(\.path) == ["/api/v1/tasks/t1/close", "/api/v1/tasks/t1/reopen"])
+    }
+
     @Test func completedTasksUseTheDefaultPageSize() async throws {
         let (session, log) = StubHTTP.session(Self.handler)
         _ = try await TodoistSource(token: "t", session: session, calendar: utc).reminders(completedSince: at(0))

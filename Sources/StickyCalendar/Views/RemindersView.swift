@@ -137,12 +137,13 @@ struct RemindersView: View {
                     .buttonStyle(.borderless)
                     .focusable(false)
                     .help("Search (⌘F)")
-                Button { settings.setShowsCompleted(!settings.showsCompleted) } label: {
-                    Image(systemName: settings.showsCompleted ? "checkmark.circle.fill" : "checkmark.circle")
+                // On while any completed ones show, just-ticked ones included: off hides them all.
+                Button { store.setShowsCompleted(!store.showsCompletedItems) } label: {
+                    Image(systemName: store.showsCompletedItems ? "checkmark.circle.fill" : "checkmark.circle")
                 }
                 .buttonStyle(.borderless)
                 .focusable(false)
-                .help(settings.showsCompleted ? "Hide completed" : "Show completed today")
+                .help(store.showsCompletedItems ? "Hide completed" : "Show completed today")
             }
         }
         .padding(.horizontal, 12)

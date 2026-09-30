@@ -16,6 +16,9 @@ final class FakeReminderSource: ReminderSource {
     var canEditNotes = true
     /// Repeat daily, as Todoist's do: completing one moves it to the next day, still open.
     var repeatingIDs: Set<String> = []
+    /// Lag like Todoist: this many reads after the next change still see what was there before it.
+    var staleReads = 0
+    private var stale: [ReminderItem]?
     private var nextID = 1
 
     func currentAccess() -> CalendarAccess { access }
@@ -24,7 +27,13 @@ final class FakeReminderSource: ReminderSource {
     func defaultListID() -> String? { defaultID }
 
     func reminders(completedSince: Date) async -> [ReminderItem] {
-        stored.filter { !$0.isCompleted || ($0.completionDate ?? .distantPast) >= completedSince }
+        var shown = stored
+        if let stale, staleReads > 0 {
+            shown = stale
+            staleReads -= 1
+            if staleReads == 0 { self.stale = nil }
+        }
+        return shown.filter { !$0.isCompleted || ($0.completionDate ?? .distantPast) >= completedSince }
     }
 
     func save(_ item: ReminderItem) throws -> ReminderItem {
@@ -32,6 +41,7 @@ final class FakeReminderSource: ReminderSource {
             failNextSave = false
             throw ReminderSourceError("Couldn't save")
         }
+        if staleReads > 0, stale == nil { stale = stored }
         var saved = item
         if item.isNew {
             saved.id = "r\(nextID)"
@@ -52,6 +62,7 @@ final class FakeReminderSource: ReminderSource {
     func link(for item: ReminderItem) -> URL? { URL(string: "fake://\(item.id)") }
 
     func remove(_ item: ReminderItem) throws {
+        if staleReads > 0, stale == nil { stale = stored }
         guard let i = stored.firstIndex(where: { $0.id == item.id }) else { throw EventSourceError.notFound }
         stored.remove(at: i)
     }
