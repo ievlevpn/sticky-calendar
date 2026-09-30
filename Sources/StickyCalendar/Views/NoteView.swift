@@ -31,10 +31,12 @@ struct NotePane: View {
             Spacer(minLength: 8)
             Button(action: onDetach) { Image(systemName: "arrow.up.right.square") }
                 .buttonStyle(.borderless)
+                .focusable(false)
                 .font(.system(size: 11))
                 .help("Move the note into its own sticky")
             Button("Clear") { editor.clear() }
                 .buttonStyle(.borderless)
+                .focusable(false)
                 .font(.system(size: 10))
                 .disabled(notepad.text.isEmpty)
                 .help("Clear the note (⌘Z to undo)")

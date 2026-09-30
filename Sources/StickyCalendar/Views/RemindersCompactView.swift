@@ -115,6 +115,7 @@ struct RemindersCompactView<Header: View>: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .focusable(false)
             .disabled(!(list?.isWritable ?? false))
             .help("Mark as done")
             VStack(alignment: .leading, spacing: 1) {
@@ -147,6 +148,7 @@ struct RemindersCompactView<Header: View>: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .foregroundStyle(enabled ? Color.primary : Color.secondary.opacity(0.5))
         .disabled(!enabled)
         .help(help)

@@ -19,6 +19,7 @@ struct JoinMeetingButton: View {
                 .background(Capsule().fill(color))
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .help("Join meeting (\(url.host ?? url.scheme ?? "link"))")
     }
 }

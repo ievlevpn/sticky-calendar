@@ -95,6 +95,9 @@ struct UnfurlMenu: View {
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        // Out of the Tab order (like the stickies' other icon buttons), so keyboard
+        // navigation never leaves a focus ring stuck on one, even while the menu is closed.
+        .focusable(false)
         .accessibilityLabel(item.name)
         .onHover { inside in
             if inside { hovered = item.id } else if hovered == item.id { hovered = nil }

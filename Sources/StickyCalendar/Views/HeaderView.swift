@@ -90,6 +90,7 @@ struct HeaderView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .help(isToday ? "Showing today's reminders. Click for all lists." : "Showing all lists. Click for today's.")
     }
 
@@ -113,6 +114,7 @@ struct HeaderView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .help("Choose a day (or scroll over the date; ←/→)")
         .overlay(ScrollWheelCatcher { steps in store.goToDay(offset: steps) })
         .popover(isPresented: $isPickingDay, arrowEdge: .bottom) {
@@ -148,6 +150,7 @@ struct HeaderView: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .help(store.isViewingToday ? "Jump to now" : "Back to today")
         .transition(.opacity.combined(with: .scale(scale: 0.8)))
     }

@@ -121,6 +121,7 @@ struct RemindersView: View {
                     .onExitCommand(perform: endSearch)
                 Button(action: endSearch) { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
                     .buttonStyle(.borderless)
+                    .focusable(false)
                     .help("Stop searching (Esc)")
             } else {
                 Picker("", selection: Binding(get: { settings.mode }, set: settings.setMode)) {
@@ -134,11 +135,13 @@ struct RemindersView: View {
                 Spacer(minLength: 0)
                 Button(action: startSearch) { Image(systemName: "magnifyingglass") }
                     .buttonStyle(.borderless)
+                    .focusable(false)
                     .help("Search (⌘F)")
                 Button { settings.setShowsCompleted(!settings.showsCompleted) } label: {
                     Image(systemName: settings.showsCompleted ? "checkmark.circle.fill" : "checkmark.circle")
                 }
                 .buttonStyle(.borderless)
+                .focusable(false)
                 .help(settings.showsCompleted ? "Hide completed" : "Show completed today")
             }
         }
@@ -212,6 +215,7 @@ struct RemindersView: View {
                     .foregroundStyle(item.isCompleted ? color.opacity(0.6) : color)
             }
             .buttonStyle(.plain)
+            .focusable(false)
             .disabled(!writable)
             .help(item.isCompleted ? "Mark as not done" : "Mark as done")
             VStack(alignment: .leading, spacing: 1) {
@@ -235,6 +239,7 @@ struct RemindersView: View {
                     Image(systemName: "link").font(.system(size: 10 * zoom, weight: .semibold))
                 }
                 .buttonStyle(.borderless)
+                .focusable(false)
                 .help("Open \(link.host ?? link.absoluteString)")
             }
             if let due = dueLabel(item, in: section) {
