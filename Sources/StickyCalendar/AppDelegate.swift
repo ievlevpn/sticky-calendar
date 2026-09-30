@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let reminderSettings = ReminderSettings()
     private lazy var reminderStore = ReminderStore(source: ReminderSources.make(reminderSettings), settings: reminderSettings)
     private var reminderRefresh: Timer?
+    private var reminderTicks = 0
     private var remindersPanel: RemindersPanel?
     private var notesPanel: NotesPanel?
     private let updateChecker = UpdateChecker(currentVersion: AppVersion.short)
@@ -222,11 +223,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !reminderSettings.isVisible { toggleReminders() }
     }
 
-    /// Todoist and TickTick don't announce changes: look again every few minutes.
+    /// Todoist, TickTick and To Do don't announce changes: look again every few minutes;
+    /// Things every 30 seconds. A check still under way isn't doubled.
     private func scheduleReminderRefresh() {
-        reminderRefresh = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
+        reminderRefresh = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.reminderSettings.isVisible else { return }
+                guard let self else { return }
+                self.reminderTicks += 1
+                guard self.reminderSettings.isVisible, !self.reminderStore.isLoading else { return }
+                guard self.reminderSettings.provider == .things || self.reminderTicks % 10 == 0 else { return }
                 Task { await self.reminderStore.reload() }
             }
         }

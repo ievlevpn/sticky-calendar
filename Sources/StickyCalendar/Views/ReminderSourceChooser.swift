@@ -26,9 +26,10 @@ struct ReminderSourceChooser: View {
                 } else {
                     Text("Where should reminders come from?")
                         .font(.headline)
-                    ForEach(ReminderProvider.allCases, id: \.self) { provider in
+                    ForEach(ReminderProvider.chooserCases, id: \.self) { provider in
                         Button { pick(provider) } label: { row(provider) }
                             .buttonStyle(.plain)
+                            .disabled(!Self.isAvailable(provider))
                     }
                     Text("You can change this later in Settings → Reminders.")
                         .font(.caption)
@@ -61,6 +62,7 @@ struct ReminderSourceChooser: View {
         .padding(.vertical, 8)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.05)))
         .contentShape(Rectangle())
+        .opacity(Self.isAvailable(provider) ? 1 : 0.5)
     }
 
     @ViewBuilder
@@ -103,6 +105,20 @@ struct ReminderSourceChooser: View {
                 Text("New reminders go to").font(.system(size: 11))
                 TextField("Inbox.md", text: $inboxPath).textFieldStyle(.roundedBorder)
             }
+        case .things:
+            if store.access == .denied {
+                Text("Sticky Calendar isn't allowed to control Things. Allow it in System Settings → Privacy & Security → Automation, under Sticky Calendar.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Open Automation Settings") {
+                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!)
+                }
+                .font(.system(size: 11))
+            } else {
+                Text("To-dos from Things on this Mac: its Today, Inbox, projects and areas. macOS will ask whether Sticky Calendar may control Things.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         if let error {
             Text(error).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
@@ -127,7 +143,7 @@ struct ReminderSourceChooser: View {
         case .obsidian:
             vaultPath = settings.obsidianVaultPath ?? ""
             inboxPath = settings.obsidianInboxPath
-        case .appleReminders: break
+        case .appleReminders, .things: break
         }
     }
 
@@ -136,6 +152,7 @@ struct ReminderSourceChooser: View {
         case .appleReminders: true
         case .todoist, .tickTick: !token.trimmingCharacters(in: .whitespaces).isEmpty
         case .obsidian: !vaultPath.isEmpty
+        case .things: true
         }
     }
 
@@ -158,6 +175,7 @@ struct ReminderSourceChooser: View {
         case .todoist: TodoistSource(token: token)
         case .tickTick: TickTickSource(token: token)
         case .obsidian: ObsidianSource(vault: URL(fileURLWithPath: vaultPath), inboxPath: inboxPath)
+        case .things: ThingsSource()
         }
         isConnecting = true
         error = nil
@@ -181,7 +199,7 @@ struct ReminderSourceChooser: View {
             case .todoist: ReminderTokens.setToken(token, for: TodoistSource.tokenAccount)
             case .tickTick: ReminderTokens.setToken(token, for: TickTickSource.tokenAccount)
             case .obsidian: settings.setObsidian(vault: vaultPath, inbox: inboxPath)
-            case .appleReminders: break
+            case .appleReminders, .things: break
             }
             settings.setProvider(provider)
             store.use(candidate)
@@ -190,12 +208,17 @@ struct ReminderSourceChooser: View {
 
     // MARK: Look
 
+    static func isAvailable(_ provider: ReminderProvider) -> Bool {
+        provider != .things || NSWorkspace.shared.urlForApplication(withBundleIdentifier: JXAThings.bundleID) != nil
+    }
+
     static func icon(_ provider: ReminderProvider) -> String {
         switch provider {
         case .appleReminders: "checklist"
         case .todoist: "checkmark.circle"
         case .tickTick: "checkmark.square"
         case .obsidian: "doc.text"
+        case .things: "checkmark.circle.fill"
         }
     }
 
@@ -205,6 +228,7 @@ struct ReminderSourceChooser: View {
         case .todoist: Color(.sRGB, red: 0.89, green: 0.27, blue: 0.2)
         case .tickTick: Color(.sRGB, red: 0.28, green: 0.45, blue: 0.98)
         case .obsidian: Color(.sRGB, red: 0.53, green: 0.36, blue: 0.96)
+        case .things: Color(.sRGB, red: 0.23, green: 0.55, blue: 0.87)
         }
     }
 
@@ -214,6 +238,7 @@ struct ReminderSourceChooser: View {
         case .todoist: "With your API token"
         case .tickTick: "With your API token"
         case .obsidian: "Tasks in your vault's notes"
+        case .things: isAvailable(.things) ? "Things 3 on this Mac (beta)" : "Things isn't installed"
         }
     }
 }

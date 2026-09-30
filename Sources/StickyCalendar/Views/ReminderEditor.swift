@@ -16,6 +16,9 @@ struct ReminderEditor: View {
     let listTitle: String
     /// Obsidian's notes are shown but edited in Obsidian.
     let canEditNotes: Bool
+    /// Things has neither times nor importance.
+    let supportsTime: Bool
+    let supportsPriority: Bool
     let onSave: (Result) -> Void
     let onDelete: () -> Void
 
@@ -29,10 +32,13 @@ struct ReminderEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     init(item: ReminderItem, listTitle: String, canEditNotes: Bool,
+         supportsTime: Bool, supportsPriority: Bool,
          onSave: @escaping (Result) -> Void, onDelete: @escaping () -> Void) {
         self.item = item
         self.listTitle = listTitle
         self.canEditNotes = canEditNotes
+        self.supportsTime = supportsTime
+        self.supportsPriority = supportsPriority
         self.onSave = onSave
         self.onDelete = onDelete
         _title = State(initialValue: item.title)
@@ -61,23 +67,25 @@ struct ReminderEditor: View {
                         .datePickerStyle(.field)
                 }
             }
-            if hasDate {
+            if hasDate && supportsTime {
                 Toggle("Time", isOn: $hasTime.animation())
             }
             postponeRow
-            HStack {
-                Text("Importance").lineLimit(1).fixedSize()
-                Spacer(minLength: 8)
-                Picker("", selection: $priority) {
-                    Text("None").tag(ReminderPriority.none)
-                    Text("!").tag(ReminderPriority.low)
-                    Text("!!").tag(ReminderPriority.medium)
-                    Text("!!!").tag(ReminderPriority.high)
+            if supportsPriority {
+                HStack {
+                    Text("Importance").lineLimit(1).fixedSize()
+                    Spacer(minLength: 8)
+                    Picker("", selection: $priority) {
+                        Text("None").tag(ReminderPriority.none)
+                        Text("!").tag(ReminderPriority.low)
+                        Text("!!").tag(ReminderPriority.medium)
+                        Text("!!!").tag(ReminderPriority.high)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .fixedSize()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .controlSize(.small)
-                .fixedSize()
             }
             Text("Notes").font(.caption).foregroundStyle(.secondary)
             // Markdown, with links you can click (in read-only notes too).
@@ -119,7 +127,7 @@ struct ReminderEditor: View {
         HStack(spacing: 4) {
             label()
             Spacer(minLength: 4)
-            ForEach(Postpone.allCases, id: \.self) { option in
+            ForEach(Postpone.allCases.filter { supportsTime || !$0.isHours }, id: \.self) { option in
                 Button(option.shortTitle) { postpone(option) }
                     .controlSize(.small)
                     .fixedSize()

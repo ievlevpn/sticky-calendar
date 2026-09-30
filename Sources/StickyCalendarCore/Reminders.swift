@@ -147,6 +147,10 @@ public enum ReminderProvider: String, Sendable, CaseIterable {
     case todoist
     case tickTick
     case obsidian
+    case things
+
+    /// The sources the chooser offers, in its order.
+    public static var chooserCases: [ReminderProvider] { [.appleReminders, .todoist, .tickTick, .obsidian, .things] }
 
     /// The app it opens, as in "Open Reminders".
     public var appName: String {
@@ -159,6 +163,7 @@ public enum ReminderProvider: String, Sendable, CaseIterable {
         case .todoist: "Todoist"
         case .tickTick: "TickTick"
         case .obsidian: "Obsidian"
+        case .things: "Things"
         }
     }
 }
@@ -333,6 +338,8 @@ public enum ReminderSources {
             settings.obsidianVaultPath.map {
                 ObsidianSource(vault: URL(fileURLWithPath: $0), inboxPath: settings.obsidianInboxPath)
             }
+        case .things:
+            ThingsSource()
         }
     }
 }
