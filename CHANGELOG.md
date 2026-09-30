@@ -2,6 +2,12 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.16.0 — 2026-09-30
+
+### Added
+- **Fade when idle** (Settings → Appearance, off by default): the stickies fade when the pointer isn't over them and you're not typing in them, and come back as soon as you point at them. Choose how long they wait (5 seconds to 10 minutes) and how much they fade.
+- **The note in the Reminders tab**: the note button works there too, opening the note under your reminders just as it does under the timeline.
+
 ## 0.15.0 — 2026-09-30
 
 ### Added
