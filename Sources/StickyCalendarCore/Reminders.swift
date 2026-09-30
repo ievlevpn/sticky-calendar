@@ -148,9 +148,12 @@ public enum ReminderProvider: String, Sendable, CaseIterable {
     case tickTick
     case obsidian
     case things
+    case microsoftToDo
 
     /// The sources the chooser offers, in its order.
-    public static var chooserCases: [ReminderProvider] { [.appleReminders, .todoist, .tickTick, .obsidian, .things] }
+    public static var chooserCases: [ReminderProvider] {
+        [.appleReminders, .todoist, .tickTick] + (MicrosoftAuth.isAvailable ? [.microsoftToDo] : []) + [.obsidian, .things]
+    }
 
     /// The app it opens, as in "Open Reminders".
     public var appName: String {
@@ -164,6 +167,7 @@ public enum ReminderProvider: String, Sendable, CaseIterable {
         case .tickTick: "TickTick"
         case .obsidian: "Obsidian"
         case .things: "Things"
+        case .microsoftToDo: "Microsoft To Do"
         }
     }
 }
@@ -340,6 +344,8 @@ public enum ReminderSources {
             }
         case .things:
             ThingsSource()
+        case .microsoftToDo:
+            MicrosoftToDoSource(auth: MicrosoftSession())
         }
     }
 }

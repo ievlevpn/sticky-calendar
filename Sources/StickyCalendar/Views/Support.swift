@@ -99,6 +99,8 @@ enum SystemLinks {
             openApp("com.TickTick.task.mac", orWeb: "https://ticktick.com/webapp")
         case .things:
             openApp(JXAThings.bundleID, orWeb: "https://culturedcode.com/things/")
+        case .microsoftToDo:
+            openApp("com.microsoft.to-do-mac", orWeb: "https://to-do.live.com/tasks/")
         case .obsidian:
             var parts = URLComponents()
             parts.scheme = "obsidian"

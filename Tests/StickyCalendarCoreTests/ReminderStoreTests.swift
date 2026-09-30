@@ -212,6 +212,11 @@ struct ReminderStoreTests {
         o.setProvider(nil)
         #expect(ReminderSettings(defaults: defaults).provider == nil)
     }
+
+    @Test func microsoftIsOfferedOnlyOnceRegistered() {
+        #expect(ReminderProvider.chooserCases.contains(.microsoftToDo) == MicrosoftAuth.isAvailable)
+        #expect(ReminderProvider.chooserCases.contains(.things))
+    }
 }
 
 struct FuzzyMatchTests {

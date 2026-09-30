@@ -19,6 +19,10 @@ struct ReminderSourceChooser: View {
     /// The last connection test to Things was refused by macOS.
     @State private var isThingsDenied = false
     @State private var error: String?
+    /// The browser sign-in to Microsoft in progress.
+    @State private var signIn: LoopbackRedirect?
+    /// Cancel was pressed; whatever the sign-in then throws is not worth showing.
+    @State private var signInCancelled = false
 
     var body: some View {
         ScrollView {
@@ -121,6 +125,20 @@ struct ReminderSourceChooser: View {
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        case .microsoftToDo:
+            Text(store.access == .denied
+                 ? "Microsoft To Do signed you out. Sign in again to continue."
+                 : "Sign in with your Microsoft account in the browser. Sticky Calendar can then read and change your To Do tasks.")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if signIn != nil {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Finish signing in in your browser…").font(.system(size: 11))
+                    Spacer()
+                    Button("Cancel") { signInCancelled = true; signIn?.cancel() }
+                }
+            }
         }
         if let error {
             Text(error).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
@@ -128,7 +146,7 @@ struct ReminderSourceChooser: View {
         HStack {
             Spacer()
             if isConnecting { ProgressView().controlSize(.small) }
-            Button(provider == .appleReminders ? "Use Apple Reminders" : "Connect", action: connect)
+            Button(provider == .appleReminders ? "Use Apple Reminders" : provider == .microsoftToDo ? "Sign in with Microsoft" : "Connect", action: connect)
                 .keyboardShortcut(.defaultAction)
                 .disabled(isConnecting || !isReady(provider))
         }
@@ -146,7 +164,7 @@ struct ReminderSourceChooser: View {
         case .obsidian:
             vaultPath = settings.obsidianVaultPath ?? ""
             inboxPath = settings.obsidianInboxPath
-        case .appleReminders, .things: break
+        case .appleReminders, .things, .microsoftToDo: break
         }
     }
 
@@ -156,6 +174,7 @@ struct ReminderSourceChooser: View {
         case .todoist, .tickTick: !token.trimmingCharacters(in: .whitespaces).isEmpty
         case .obsidian: !vaultPath.isEmpty
         case .things: true
+        case .microsoftToDo: signIn == nil
         }
     }
 
@@ -173,12 +192,14 @@ struct ReminderSourceChooser: View {
     private func connect() {
         guard let provider = choice, isReady(provider) else { return }
         let token = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        let candidate: ReminderSource = switch provider {
-        case .appleReminders: ReminderKitSource()
-        case .todoist: TodoistSource(token: token)
-        case .tickTick: TickTickSource(token: token)
-        case .obsidian: ObsidianSource(vault: URL(fileURLWithPath: vaultPath), inboxPath: inboxPath)
-        case .things: ThingsSource()
+        let candidate: ReminderSource
+        switch provider {
+        case .appleReminders: candidate = ReminderKitSource()
+        case .todoist: candidate = TodoistSource(token: token)
+        case .tickTick: candidate = TickTickSource(token: token)
+        case .obsidian: candidate = ObsidianSource(vault: URL(fileURLWithPath: vaultPath), inboxPath: inboxPath)
+        case .things: candidate = ThingsSource()
+        case .microsoftToDo: return signInToMicrosoft()
         }
         isConnecting = true
         error = nil
@@ -204,10 +225,50 @@ struct ReminderSourceChooser: View {
             case .todoist: ReminderTokens.setToken(token, for: TodoistSource.tokenAccount)
             case .tickTick: ReminderTokens.setToken(token, for: TickTickSource.tokenAccount)
             case .obsidian: settings.setObsidian(vault: vaultPath, inbox: inboxPath)
-            case .appleReminders, .things: break
+            case .appleReminders, .things, .microsoftToDo: break
             }
             settings.setProvider(provider)
+            ReminderTokens.setToken(nil, for: MicrosoftAuth.tokenAccount)
             store.use(candidate)
+        }
+    }
+
+    /// Browser sign-in: listen locally, open Microsoft's page, trade the code for tokens,
+    /// try one fetch, then save.
+    private func signInToMicrosoft() {
+        let pkce = PKCE.make()
+        let state = MicrosoftAuth.randomState()
+        let redirect = LoopbackRedirect(state: state)
+        signIn = redirect
+        signInCancelled = false
+        error = nil
+        Task {
+            defer { signIn = nil }
+            do {
+                let uri = try await redirect.start()
+                NSWorkspace.shared.open(MicrosoftAuth.authorizeURL(redirect: uri, pkce: pkce, state: state))
+                let code = try await redirect.code()
+                let auth = MicrosoftSession(refreshToken: nil)
+                try await auth.exchange(code: code, verifier: pkce.verifier, redirect: uri)
+                let candidate = MicrosoftToDoSource(auth: auth)
+                _ = try await candidate.reminders(completedSince: Date())
+                settings.setProvider(.microsoftToDo)
+                store.use(candidate)
+                NSApp.activate()
+            } catch {
+                // Cancel can surface as any failure if it lands while the listener is starting.
+                if signInCancelled { return }
+                switch error {
+                case LoopbackRedirect.Failure.cancelled:
+                    return
+                case LoopbackRedirect.Failure.timedOut:
+                    self.error = "Signing in took too long. Try again."
+                case LoopbackRedirect.Failure.denied(let reason):
+                    self.error = "Microsoft didn't sign you in: \(reason)"
+                default:
+                    self.error = error.localizedDescription
+                }
+            }
         }
     }
 
@@ -224,6 +285,7 @@ struct ReminderSourceChooser: View {
         case .tickTick: "checkmark.square"
         case .obsidian: "doc.text"
         case .things: "checkmark.circle.fill"
+        case .microsoftToDo: "checkmark.circle"
         }
     }
 
@@ -234,6 +296,7 @@ struct ReminderSourceChooser: View {
         case .tickTick: Color(.sRGB, red: 0.28, green: 0.45, blue: 0.98)
         case .obsidian: Color(.sRGB, red: 0.53, green: 0.36, blue: 0.96)
         case .things: Color(.sRGB, red: 0.23, green: 0.55, blue: 0.87)
+        case .microsoftToDo: Color(.sRGB, red: 0.15, green: 0.39, blue: 0.81)
         }
     }
 
@@ -243,6 +306,7 @@ struct ReminderSourceChooser: View {
         case .todoist: "With your API token"
         case .tickTick: "With your API token"
         case .obsidian: "Tasks in your vault's notes"
+        case .microsoftToDo: "Sign in with your Microsoft account"
         case .things: isAvailable(.things) ? "Things 3 on this Mac (beta)" : "Things isn't installed"
         }
     }
