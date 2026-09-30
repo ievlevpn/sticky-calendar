@@ -216,10 +216,12 @@ public final class ReminderStore {
     // MARK: Changes
 
     /// Ticks or unticks.
-    public func toggle(_ item: ReminderItem) async {
+    public func toggle(_ item: ReminderItem) async { await toggle(item, inverse: nil) }
+
+    private func toggle(_ item: ReminderItem, inverse: UndoSlot?) async {
         let original = current(item)
         if original.isCompleted, tickedRepeats[original.id] != nil {
-            return await untickRepeat(original)
+            return await untickRepeat(original, inverse: inverse)
         }
         var changed = original
         changed.isCompleted.toggle()
@@ -228,12 +230,13 @@ public final class ReminderStore {
             recentlyCompleted.insert(item.id)
             if changed.isRepeating { tickedRepeats[item.id] = changed }
         }
-        await save(changed, undo: original, actionName: changed.isCompleted ? "Complete Reminder" : "Uncomplete Reminder")
+        await save(changed, undo: original, actionName: changed.isCompleted ? "Complete Reminder" : "Uncomplete Reminder",
+                   inverse: inverse)
     }
 
     /// The source moved a ticked repeating one on to its next date, so unticking puts back
     /// the date it had (reopening it would do nothing; ticking again would skip another).
-    private func untickRepeat(_ shown: ReminderItem) async {
+    private func untickRepeat(_ shown: ReminderItem, inverse: UndoSlot?) async {
         guard let ticked = tickedRepeats.removeValue(forKey: shown.id) else { return }
         // Just ticked, not reloaded yet: learn what the source made of it first.
         if items.first(where: { $0.id == shown.id })?.isCompleted == true { await reload() }
@@ -243,7 +246,7 @@ public final class ReminderStore {
         changed.nextDue = nil
         changed.due = ticked.due
         changed.dueHasTime = ticked.dueHasTime
-        if !(await save(changed, undo: shown, actionName: "Uncomplete Reminder")) {
+        if !(await save(changed, undo: shown, actionName: "Uncomplete Reminder", inverse: inverse)) {
             tickedRepeats[shown.id] = ticked
         }
     }
@@ -324,16 +327,15 @@ public final class ReminderStore {
         return await insert(ReminderItem(title: input.title, listID: list, due: input.due, dueHasTime: input.dueHasTime))
     }
 
-    public func delete(_ item: ReminderItem) async {
+    public func delete(_ item: ReminderItem) async { await delete(item, inverse: nil) }
+
+    private func delete(_ item: ReminderItem, inverse: UndoSlot?) async {
         guard let source else { return }
         let target = current(item)
         items.removeAll { $0.id == target.id }
         do {
             try await source.remove(target)
-            undoManager.registerUndo(withTarget: self) { store in
-                MainActor.assumeIsolated { store.run { _ = await store.insert(target) } }
-            }
-            undoManager.setActionName("Delete Reminder")
+            registerUndo("Delete Reminder", into: inverse) { store, back in _ = await store.insert(target, inverse: back) }
             reloadSoon()
         } catch {
             fail(error)
@@ -352,16 +354,13 @@ public final class ReminderStore {
     public func link(for item: ReminderItem) -> URL? { source?.link(for: item) }
 
     /// Saves as new (also restores a deleted one, which gets a new identifier).
-    private func insert(_ item: ReminderItem) async -> ReminderItem? {
+    private func insert(_ item: ReminderItem, inverse: UndoSlot? = nil) async -> ReminderItem? {
         guard let source else { return nil }
         var fresh = item
         fresh.id = ""
         do {
             let saved = try await source.save(fresh)
-            undoManager.registerUndo(withTarget: self) { store in
-                MainActor.assumeIsolated { store.run { await store.delete(saved) } }
-            }
-            undoManager.setActionName("New Reminder")
+            registerUndo("New Reminder", into: inverse) { store, back in await store.delete(saved, inverse: back) }
             items.append(saved)
             reloadSoon()
             return saved
@@ -373,24 +372,20 @@ public final class ReminderStore {
 
     /// Shows the change at once, then saves it; puts the original back if saving fails.
     @discardableResult
-    private func save(_ changed: ReminderItem, undo original: ReminderItem, actionName: String) async -> Bool {
+    private func save(_ changed: ReminderItem, undo original: ReminderItem, actionName: String,
+                      inverse: UndoSlot? = nil) async -> Bool {
         guard let source else { return false }
         replace(changed)
         do {
             let saved = try await source.save(changed)
             replace(saved)
-            undoManager.registerUndo(withTarget: self) { store in
-                MainActor.assumeIsolated {
-                    store.run {
-                        if original.isCompleted != saved.isCompleted {
-                            await store.toggle(saved)
-                        } else {
-                            await store.save(original, undo: saved, actionName: actionName)
-                        }
-                    }
+            registerUndo(actionName, into: inverse) { store, back in
+                if original.isCompleted != saved.isCompleted {
+                    await store.toggle(saved, inverse: back)
+                } else {
+                    await store.save(original, undo: saved, actionName: actionName, inverse: back)
                 }
             }
-            undoManager.setActionName(actionName)
             reloadSoon()
             return true
         } catch {
@@ -398,6 +393,38 @@ public final class ReminderStore {
             fail(error)
             return false
         }
+    }
+
+    // MARK: Undo
+
+    /// A change that takes back another; it fills `back` with the way to take itself back.
+    private typealias Change = @MainActor (ReminderStore, UndoSlot) async -> Void
+
+    /// An entry on the undo (or redo) stack, filled in once the change it takes back is saved.
+    private final class UndoSlot {
+        var change: Change?
+    }
+
+    /// Makes `change` the way to take back what was just done: a new undo entry, or, when
+    /// this was itself an undo or redo, the entry `slot` registered for it.
+    private func registerUndo(_ name: String, into slot: UndoSlot?, _ change: @escaping Change) {
+        let slot = slot ?? register(name)
+        slot.change = change
+    }
+
+    /// Registers an empty entry. Undo and redo save as tasks, which finish after the undo
+    /// manager is done, when a new registration would land on the wrong stack: so when this
+    /// entry runs, it registers the entry back straight away, for its change to fill in.
+    private func register(_ name: String) -> UndoSlot {
+        let slot = UndoSlot()
+        undoManager.registerUndo(withTarget: self) { store in
+            MainActor.assumeIsolated {
+                let back = store.register(name)
+                store.run { await slot.change?(store, back) }
+            }
+        }
+        undoManager.setActionName(name)
+        return slot
     }
 
     private func replace(_ item: ReminderItem) {
