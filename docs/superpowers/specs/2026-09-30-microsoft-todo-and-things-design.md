@@ -201,10 +201,11 @@ Real-account checklist (when available):
 
 - To Do: full sign-in with a personal account; web link format; `$filter` on status and
   completion date; ticking a repeating task (same id advancing, or a new task); notes saved
-  as plain text; Flagged email read-only.
+  as plain text; Flagged email read-only; due days of tasks created in the To Do app by a user
+  east of UTC (the day is read as the first 10 characters of `dueDateTime`).
 - Things: the bulk JXA read against the real app, and its speed with a few hundred to-dos;
   scripting id = link id; untick via status open; finding the Inbox with Things in another
-  language; how repeating copies look.
+  language; how repeating copies look; read time with 50+ projects and many Someday to-dos.
 
 ## Rollout
 

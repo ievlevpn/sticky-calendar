@@ -93,6 +93,7 @@ public final class MicrosoftToDoSource: ReminderSource {
 
     // MARK: Private
 
+    @discardableResult
     private func authorized<T>(_ body: () async throws -> T) async throws -> T {
         do {
             let result = try await body()

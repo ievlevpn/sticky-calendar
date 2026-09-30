@@ -38,6 +38,20 @@ struct OsaScriptRunnerTests {
         #expect(out.count == 300000)
     }
 
+    @Test func aProcessThatExitedAtOnceIsAFailureNotASigpipe() async {
+        let runner = OsaScriptRunner(timeout: .seconds(5), executable: URL(fileURLWithPath: "/usr/bin/true"))
+        // Larger than a pipe buffer, so the write can't finish before the process is gone.
+        let big = "//" + String(repeating: "x", count: 4_000_000)
+        do {
+            _ = try await runner.run(big)
+            Issue.record("expected a failure")
+        } catch let failure as OsaScriptRunner.Failure {
+            guard case .failed(nil, _) = failure else { Issue.record("wrong failure \(failure)"); return }
+        } catch {
+            Issue.record("wrong error \(error)")
+        }
+    }
+
     @Test func decodesASnapshot() throws {
         let json = """
         {"open":[{"id":"a","name":"Water plants","notes":"","status":"open","when":"2026-09-27T22:00:00.000Z","deadline":null,"completed":null}],

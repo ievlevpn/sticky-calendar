@@ -18,9 +18,13 @@ struct RemoteClient: Sendable {
         try await send("GET", path, query: query, body: nil)
     }
 
-    /// A page link the server handed back (Microsoft's `@odata.nextLink`).
+    /// A page link the server handed back (Microsoft's `@odata.nextLink`). Only followed on the
+    /// service's own host over HTTPS, so the token can't be sent anywhere else.
     func get(url: URL) async throws -> Any {
-        try await perform("GET", url: url, body: nil)
+        guard url.scheme == "https", url.host == base.host else {
+            throw ReminderSourceError("\(service) sent a page link Sticky Calendar won't follow.")
+        }
+        return try await perform("GET", url: url, body: nil)
     }
 
     @discardableResult

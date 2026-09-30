@@ -279,6 +279,10 @@ struct ReminderSourceChooser: View {
                     self.error = "Signing in took too long. Try again."
                 case LoopbackRedirect.Failure.denied(let reason):
                     self.error = "Microsoft didn't sign you in: \(reason)"
+                case MicrosoftSession.Failure.refused:
+                    self.error = "Microsoft didn't accept the sign-in. Try again."
+                case MicrosoftSession.Failure.signedOut:
+                    self.error = "Signing in didn't finish. Try again."
                 default:
                     self.error = error.localizedDescription
                 }

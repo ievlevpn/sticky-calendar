@@ -17,7 +17,17 @@ public struct OsaScriptRunner: Sendable {
 
     public let timeout: Duration
 
-    public init(timeout: Duration = .seconds(20)) { self.timeout = timeout }
+    /// The program that runs the script; tests point it at something else.
+    let executable: URL
+
+    public init(timeout: Duration = .seconds(20)) {
+        self.init(timeout: timeout, executable: URL(fileURLWithPath: "/usr/bin/osascript"))
+    }
+
+    init(timeout: Duration, executable: URL) {
+        self.timeout = timeout
+        self.executable = executable
+    }
 
     /// Runs `script` with `args` available to it as the constant `args`, and returns what the
     /// script's last expression evaluates to, as text. Arguments go in as a JSON literal, so
@@ -26,7 +36,7 @@ public struct OsaScriptRunner: Sendable {
         let json = try JSONSerialization.data(withJSONObject: args, options: [.fragmentsAllowed])
         let source = "const args = \(String(decoding: json, as: UTF8.self));\n\(script)"
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.executableURL = executable
         process.arguments = ["-l", "JavaScript", "-"]
         let input = Pipe(), output = Pipe(), errors = Pipe()
         process.standardInput = input
@@ -39,7 +49,18 @@ public struct OsaScriptRunner: Sendable {
         // Read while it runs: a full pipe would otherwise stall it.
         let out = Task.detached { output.fileHandleForReading.readDataToEndOfFile() }
         let err = Task.detached { errors.fileHandleForReading.readDataToEndOfFile() }
-        input.fileHandleForWriting.write(Data(source.utf8))
+        // A process that has already exited must give an error here, not kill the app with SIGPIPE.
+        _ = fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+        do {
+            try input.fileHandleForWriting.write(contentsOf: Data(source.utf8))
+        } catch {
+            try? input.fileHandleForWriting.close()
+            if process.isRunning { process.terminate() }
+            process.waitUntilExit()
+            _ = await out.value
+            _ = await err.value
+            throw Failure.failed(code: nil, message: "Couldn't hand the script to osascript: \(error.localizedDescription)")
+        }
         try? input.fileHandleForWriting.close()
         enum Outcome { case exited, timedOut }
         let outcome = await withTaskCancellationHandler {

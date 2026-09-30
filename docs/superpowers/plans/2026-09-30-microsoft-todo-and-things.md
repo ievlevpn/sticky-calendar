@@ -2275,5 +2275,5 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 
 ## Real-account checklist (after the plan; from the spec)
 
-- To Do: full sign-in with a personal account; web link format; `$filter` on status and completion date; ticking a repeating task (same id advancing, or a new task); notes saved as plain text; Flagged email read-only; `com.microsoft.to-do-mac` bundle id.
-- Things: the bulk JXA read against the real app, and its speed with a few hundred to-dos; scripting id = link id; untick via status open; built-in list ids (`TMInboxListSource`, `TMLogbookListSource`, `TMNextListSource`) in a non-English Things; how repeating copies look.
+- To Do: full sign-in with a personal account; web link format; `$filter` on status and completion date; ticking a repeating task (same id advancing, or a new task); notes saved as plain text; Flagged email read-only; `com.microsoft.to-do-mac` bundle id; due days of tasks created in the To Do app by a user east of UTC (the day is read as the first 10 characters of `dueDateTime`).
+- Things: the bulk JXA read against the real app, and its speed with a few hundred to-dos; scripting id = link id; untick via status open; built-in list ids (`TMInboxListSource`, `TMLogbookListSource`, `TMNextListSource`) in a non-English Things; how repeating copies look; read time with 50+ projects and many Someday to-dos.

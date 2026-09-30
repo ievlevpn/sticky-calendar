@@ -48,6 +48,17 @@ struct RemoteClientTests {
         #expect(log().first?.path == "/v1/things" && log().first?.query["$skiptoken"] == "abc")
     }
 
+    @Test func nextLinksToOtherHostsAreNotFollowed() async {
+        let (session, log) = StubHTTP.session { _ in (200, ["value": []]) }
+        let client = RemoteClient(base: URL(string: "https://example.test/v1/")!, token: "t", session: session, service: "Test")
+        for link in ["https://evil.test/v1/things", "http://example.test/v1/things"] {
+            await #expect(throws: ReminderSourceError("Test sent a page link Sticky Calendar won't follow.")) {
+                try await client.get(url: URL(string: link)!)
+            }
+        }
+        #expect(log().isEmpty)
+    }
+
     @Test func a404SaysTheReminderIsGone() async {
         let (session, _) = StubHTTP.session { _ in (404, [:]) }
         let client = RemoteClient(base: URL(string: "https://example.test/v1/")!, token: "t", session: session, service: "Test")
