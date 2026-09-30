@@ -2,6 +2,12 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.22.1 — 2026-09-30
+
+### Fixed
+- **Todoist: postponing a repeating task keeps it repeating.** Changing a repeating task's date (Postpone, or the editor) used to replace its schedule, so it stopped repeating. It now moves to the new date and keeps its rule, as rescheduling in Todoist does.
+- **The editor's postpone buttons show what you picked.** The button you click (+1 h, +3 h, Tomorrow, Next week) stays highlighted while the date is the one it set, and the date field flashes when it changes.
+
 ## 0.22.0 — 2026-09-30
 
 ### Added
