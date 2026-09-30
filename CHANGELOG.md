@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.18.1 — 2026-09-30
+
+### Fixed
+- **Opacity at 100 % is now solid.** The stickies stayed see-through even at full opacity. Above the default (92 %) they now turn gradually solid, and at 100 % nothing shows through; at the default and below they look as before.
+
 ## 0.18.0 — 2026-09-30
 
 ### Added
