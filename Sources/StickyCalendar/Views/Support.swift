@@ -64,6 +64,35 @@ enum SystemLinks {
         )
     }
 
+    /// Opens where the reminders come from: Reminders, the Todoist or TickTick app (else
+    /// their web app), or the Obsidian vault.
+    static func openReminderSource(_ settings: ReminderSettings) {
+        guard let provider = settings.provider else { return }
+        NSApp.activate() // see openCalendarApp()
+        let workspace = NSWorkspace.shared
+        func openApp(_ bundleID: String, orWeb web: String) {
+            if let app = workspace.urlForApplication(withBundleIdentifier: bundleID) {
+                workspace.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
+            } else if let url = URL(string: web) {
+                workspace.open(url)
+            }
+        }
+        switch provider {
+        case .appleReminders:
+            openRemindersApp()
+        case .todoist:
+            openApp("com.todoist.mac.Todoist", orWeb: "https://app.todoist.com/app/today")
+        case .tickTick:
+            openApp("com.TickTick.task.mac", orWeb: "https://ticktick.com/webapp")
+        case .obsidian:
+            var parts = URLComponents()
+            parts.scheme = "obsidian"
+            parts.host = "open"
+            parts.queryItems = settings.obsidianVaultPath.map { [URLQueryItem(name: "path", value: $0)] }
+            if let url = parts.url { workspace.open(url) }
+        }
+    }
+
     static func openRemindersPrivacySettings() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")!)
     }

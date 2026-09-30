@@ -133,6 +133,11 @@ public enum ReminderProvider: String, Sendable, CaseIterable {
     case tickTick
     case obsidian
 
+    /// The app it opens, as in "Open Reminders".
+    public var appName: String {
+        self == .appleReminders ? "Reminders" : name
+    }
+
     public var name: String {
         switch self {
         case .appleReminders: "Apple Reminders"

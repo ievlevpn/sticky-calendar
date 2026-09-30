@@ -372,19 +372,30 @@ struct RemindersHeader: View {
             Text("Reminders").font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 .fadedWhileMenuOpen(isMenuOpen)
             Spacer(minLength: 0)
-            UnfurlMenu(items: [
-                UnfurlItem(id: "refresh", symbol: "arrow.clockwise", isBusy: isRefreshing, name: "Refresh",
-                           shortcut: "⌘R", action: onRefresh),
-                UnfurlItem(id: "pin", symbol: settings.isPinned ? "pin.fill" : "pin.slash", isActive: settings.isPinned,
-                           name: settings.isPinned ? "Unpin" : "Pin on top", shortcut: "⌃S", action: onTogglePin),
-                UnfurlItem(id: "settings", symbol: "gearshape", name: "Settings", shortcut: "⌘,", action: onSettings),
-                UnfurlItem(id: "hide", symbol: "xmark", name: "Hide reminders", shortcut: "⌘W", action: onHide),
-            ], availableWidth: width, isOpen: $isMenuOpen)
+            UnfurlMenu(items: menuItems, availableWidth: width, isOpen: $isMenuOpen)
         }
         .padding(.horizontal, 12)
         .frame(height: 32)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private var menuItems: [UnfurlItem] {
+        var items = [
+            UnfurlItem(id: "refresh", symbol: "arrow.clockwise", isBusy: isRefreshing, name: "Refresh",
+                       shortcut: "⌘R", action: onRefresh),
+        ]
+        if let provider = settings.provider {
+            items.append(UnfurlItem(id: "reminders-app", symbol: "arrow.up.forward.app", name: "Open \(provider.appName)",
+                                    shortcut: "⌘O") { SystemLinks.openReminderSource(settings) })
+        }
+        items += [
+            UnfurlItem(id: "pin", symbol: settings.isPinned ? "pin.fill" : "pin.slash", isActive: settings.isPinned,
+                       name: settings.isPinned ? "Unpin" : "Pin on top", shortcut: "⌃S", action: onTogglePin),
+            UnfurlItem(id: "settings", symbol: "gearshape", name: "Settings", shortcut: "⌘,", action: onSettings),
+            UnfurlItem(id: "hide", symbol: "xmark", name: "Hide reminders", shortcut: "⌘W", action: onHide),
+        ]
+        return items
     }
 }

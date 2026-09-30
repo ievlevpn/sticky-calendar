@@ -51,6 +51,7 @@ final class RemindersPanel: FloatingPanel {
     }
 
     /// ⌘Z / ⇧⌘Z undo and redo (unless a text field is editing), ⌃S pins, ⌘W hides, ⌘R refreshes, ⌘F searches,
+    /// ⌘O opens the reminders' own app,
     /// ⌘, opens Settings, ⌘= / ⌘- / ⌘0 zoom.
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -69,6 +70,7 @@ final class RemindersPanel: FloatingPanel {
         switch (flags, key) {
         case ([.command], ","): onSettings()
         case ([.command], "w"): onClose()
+        case ([.command], "o"): SystemLinks.openReminderSource(settings)
         case ([.command], "r"): Task { await store.refresh() }
         case ([.command], "f"): store.requestSearch()
         case ([.command], "="), ([.command], "+"), ([.command, .shift], "+"), ([.command, .shift], "="): appSettings.zoomIn()

@@ -176,9 +176,18 @@ struct HeaderView: View {
                        name: settings.isPinned ? "Unpin" : "Pin on top", shortcut: "⌃S", action: onTogglePin),
             UnfurlItem(id: "refresh", symbol: "arrow.clockwise", isBusy: isRefreshing, name: "Refresh", shortcut: "⌘R",
                        action: onRefresh),
-            UnfurlItem(id: "calendar", symbol: "calendar", name: "Open in Calendar", shortcut: "⌘O") {
+        ]
+        if showsRemindersTab {
+            if let provider = reminderSettings.provider {
+                items.append(UnfurlItem(id: "reminders-app", symbol: "arrow.up.forward.app", name: "Open \(provider.appName)",
+                                        shortcut: "⌘O") { SystemLinks.openReminderSource(reminderSettings) })
+            }
+        } else {
+            items.append(UnfurlItem(id: "calendar", symbol: "calendar", name: "Open in Calendar", shortcut: "⌘O") {
                 CalendarJump.perform(day: store.day, settings: settings, store: store)
-            },
+            })
+        }
+        items += [
             UnfurlItem(id: "compact",
                        symbol: isCompact ? "rectangle.expand.vertical" : "rectangle.compress.vertical",
                        isActive: isCompact, name: isCompact ? "Expand" : "Compact", shortcut: "⌘M",

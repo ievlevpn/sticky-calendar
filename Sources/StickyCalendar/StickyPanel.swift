@@ -206,6 +206,7 @@ final class StickyPanel: FloatingPanel {
             case ([.command], "z"): reminderStore.undoManager.undo()
             case ([.command, .shift], "z"): reminderStore.undoManager.redo()
             case ([.control], "s"): togglePinned()
+            case ([.command], "o"): SystemLinks.openReminderSource(reminderSettings)
             default: return false
             }
             return true
