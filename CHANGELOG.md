@@ -2,6 +2,12 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.18.0 — 2026-09-30
+
+### Added
+- **Open your reminders' app**: with reminders showing, the ••• menu (and ⌘O) opens where they come from: Reminders, the Todoist or TickTick app (or their web app), or your Obsidian vault.
+- **Drag the note closed**: drag the note's bar all the way down to close it. Just before, the bar says "Release to close the note", the note dims and the trackpad clicks; drag back up to keep it. It reopens at its old height.
+
 ## 0.17.1 — 2026-09-30
 
 ### Fixed
