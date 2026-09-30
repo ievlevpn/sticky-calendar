@@ -139,7 +139,7 @@ struct StickyContentView: View {
     private var notePane: some View {
         if notepad.placement == .pane, notepad.isVisible {
             NotePane(notepad: notepad, editor: noteEditor, zoom: settings.zoom, maxHeight: contentHeight - reservedHeight,
-                     onDetach: { onMoveNote(.window) })
+                     onDetach: { onMoveNote(.window) }, onClose: toggleNote)
         }
     }
 

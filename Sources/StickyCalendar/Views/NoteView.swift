@@ -3,6 +3,8 @@ import StickyCalendarCore
 import SwiftUI
 
 /// The scratch note under the timeline: a bar (drag to resize, Clear) above the note. Text is the event-title size.
+/// Dragging the bar all the way down closes the note: near the bottom it says so, the note
+/// dims and the trackpad clicks; letting go there closes it, dragging back up doesn't.
 struct NotePane: View {
     let notepad: Notepad
     let editor: NoteEditorController
@@ -11,21 +13,42 @@ struct NotePane: View {
     let maxHeight: CGFloat
     /// Moves the note into its own sticky.
     let onDetach: () -> Void
+    /// Closes the note (dragged all the way down).
+    let onClose: () -> Void
 
     @State private var dragStartHeight: CGFloat?
+    /// While dragged below the note's least height: how much is left showing.
+    @State private var squeezedHeight: CGFloat?
+    /// Dragged far enough down that letting go closes the note.
+    @State private var willClose = false
+
+    private static let barHeight: CGFloat = 22
+    /// Within this much of just the bar, letting go closes the note.
+    private static let closeZone: CGFloat = 14
 
     var body: some View {
-        let height = min(CGFloat(notepad.height), max(maxHeight, CGFloat(Notepad.minHeight)))
+        let height = squeezedHeight ?? min(CGFloat(notepad.height), max(maxHeight, CGFloat(Notepad.minHeight)))
         VStack(spacing: 0) {
             bar(height: height)
             NoteEditor(notepad: notepad, controller: editor, zoom: zoom)
+                .opacity(willClose ? 0.35 : 1)
         }
         .frame(height: height)
+        .clipped()
+        .animation(.easeOut(duration: 0.15), value: willClose)
     }
 
     private func bar(height: CGFloat) -> some View {
         HStack(spacing: 8) {
-            NoteTitle(notepad: notepad, size: 10)
+            if willClose {
+                Label("Release to close the note", systemImage: "xmark.circle")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .transition(.opacity)
+            } else {
+                NoteTitle(notepad: notepad, size: 10)
+            }
             Spacer(minLength: 8)
             Capsule().fill(.tertiary).frame(width: 28, height: 3)
             Spacer(minLength: 8)
@@ -42,7 +65,7 @@ struct NotePane: View {
                 .help("Clear the note (⌘Z to undo)")
         }
         .padding(.horizontal, 12)
-        .frame(height: 22)
+        .frame(height: Self.barHeight)
         .contentShape(Rectangle())
         .background(.bar)
         .overlay(alignment: .top) { Divider() }
@@ -54,9 +77,29 @@ struct NotePane: View {
             .onChanged { value in
                 let start = dragStartHeight ?? height
                 dragStartHeight = start
-                notepad.setHeight(Double(min(start - value.translation.height, maxHeight)))
+                let wanted = start - value.translation.height
+                if wanted >= CGFloat(Notepad.minHeight) {
+                    squeezedHeight = nil
+                    notepad.setHeight(Double(min(wanted, maxHeight)))
+                } else {
+                    squeezedHeight = max(wanted, Self.barHeight)
+                }
+                let closing = wanted <= Self.barHeight + Self.closeZone
+                if closing != willClose {
+                    willClose = closing
+                    NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+                }
             }
-            .onEnded { _ in dragStartHeight = nil })
+            .onEnded { _ in
+                if willClose {
+                    // Reopens at the height it had before this drag.
+                    notepad.setHeight(Double(dragStartHeight ?? height))
+                    onClose()
+                }
+                dragStartHeight = nil
+                squeezedHeight = nil
+                willClose = false
+            })
     }
 }
 
