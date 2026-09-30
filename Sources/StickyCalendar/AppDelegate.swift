@@ -39,8 +39,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         self.panel = panel
         statusItem = StatusItemController(
-            isPanelVisible: { [weak panel] in panel?.isVisible ?? false },
-            areRemindersOpen: { [weak self] in self?.reminderSettings.isVisible ?? false },
+            isPanelVisible: { [weak panel] in panel.map { $0.isVisible && !$0.isCovered } ?? false },
+            areRemindersOpen: { [weak self] in self?.areRemindersInView ?? false },
             remindersHaveOwnWindow: { [weak self] in self?.reminderSettings.placement == .window },
             onToggle: { [weak self] in self?.togglePanel() },
             onToggleReminders: { [weak self] in self?.toggleReminders() },
@@ -156,7 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func toggleReminders() {
         switch reminderSettings.placement {
         case .window:
-            if reminderSettings.isVisible { hideRemindersWindow() } else { showRemindersWindow() }
+            if areRemindersInView { hideRemindersWindow() } else { showRemindersWindow() }
         case .tab:
             reminderSettings.setVisible(!reminderSettings.isVisible)
             panel?.orderFrontRegardless()
@@ -185,6 +185,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 panel.makeKey()
             }
         }
+    }
+
+    /// Open and not under another window (in a tab: open).
+    private var areRemindersInView: Bool {
+        reminderSettings.isVisible && !(reminderSettings.placement == .window && remindersPanel?.isCovered == true)
     }
 
     private func showRemindersWindow() {
@@ -262,7 +267,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func togglePanel() {
         guard let panel else { return }
-        if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
+        // Under another window (it isn't pinned): bring it forward rather than hide it.
+        if panel.isVisible && !panel.isCovered { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
     }
 
     /// Settings float like the stickies and join every Space, so they open over a full-screen

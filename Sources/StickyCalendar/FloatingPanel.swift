@@ -136,6 +136,24 @@ class FloatingPanel: NSPanel, NSWindowDelegate {
         }
     }
 
+    /// On screen but under another window: easy when it isn't pinned, and then showing it
+    /// means bringing it forward. Any overlap counts, so the menu says what a click will do.
+    var isCovered: Bool {
+        guard isVisible, let primary = NSScreen.screens.first else { return false }
+        // Window list bounds have their origin at the primary screen's top left.
+        let mine = CGRect(x: frame.minX, y: primary.frame.maxY - frame.maxY, width: frame.width, height: frame.height)
+        let above = CGWindowListCopyWindowInfo([.optionOnScreenAboveWindow, .excludeDesktopElements],
+                                               CGWindowID(windowNumber)) as? [[String: Any]] ?? []
+        return above.contains { info in
+            // Its own layer only: menus (the menu bar's included) float above every sticky.
+            guard (info[kCGWindowLayer as String] as? Int) == level.rawValue,
+                  (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                  let bounds = info[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: bounds) else { return false }
+            return rect.intersects(mine)
+        }
+    }
+
     func applyPinned() {
         let pinned = isPinned()
         isFloatingPanel = pinned

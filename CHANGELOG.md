@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.22.2 — 2026-09-30
+
+### Fixed
+- **Show Sticky brings a buried sticky forward.** When the sticky isn't pinned and another window covers it, the menu bar item now says Show Sticky and brings it to the front in one click, instead of hiding it. Show/Hide Reminders does the same for the reminders window.
+
 ## 0.22.1 — 2026-09-30
 
 ### Fixed
