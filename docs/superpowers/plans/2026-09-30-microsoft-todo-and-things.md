@@ -1707,16 +1707,8 @@ struct MicrosoftToDoSourceTests {
                 ["id": "L2", "displayName": "Flagged email", "wellknownListName": "flaggedEmails"],
             ]])
         case ("GET", "/v1.0/me/todo/lists/L1/tasks"):
-            if (call.query["$filter"] ?? "").hasPrefix("status ne") {
-                if call.query["$skiptoken"] == nil {
-                    return (200, ["value": [
-                        ["id": "t1", "title": "Pay rent", "status": "notStarted", "importance": "high",
-                         "body": ["content": "by transfer", "contentType": "text"],
-                         "dueDateTime": ["dateTime": "2026-09-30T00:00:00.0000000", "timeZone": "UTC"],
-                         "isReminderOn": true,
-                         "reminderDateTime": ["dateTime": "2026-09-30T17:00:00.0000000", "timeZone": "UTC"]],
-                    ], "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/todo/lists/L1/tasks?$skiptoken=p2"])
-                }
+            // A next-page link carries the query in its skip token, as Graph's do.
+            if call.query["$skiptoken"] == "p2" {
                 return (200, ["value": [
                     ["id": "t2", "title": "Gym", "status": "inProgress", "importance": "normal",
                      "dueDateTime": ["dateTime": "2026-10-02T00:00:00.0000000", "timeZone": "UTC"],
@@ -1724,6 +1716,15 @@ struct MicrosoftToDoSourceTests {
                      "reminderDateTime": ["dateTime": "2026-10-01T07:00:00.0000000", "timeZone": "UTC"],
                      "recurrence": ["pattern": ["type": "daily", "interval": 1]]],
                 ]])
+            }
+            if (call.query["$filter"] ?? "").hasPrefix("status ne") {
+                return (200, ["value": [
+                    ["id": "t1", "title": "Pay rent", "status": "notStarted", "importance": "high",
+                     "body": ["content": "by transfer", "contentType": "text"],
+                     "dueDateTime": ["dateTime": "2026-09-30T00:00:00.0000000", "timeZone": "UTC"],
+                     "isReminderOn": true,
+                     "reminderDateTime": ["dateTime": "2026-09-30T17:00:00.0000000", "timeZone": "UTC"]],
+                ], "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/todo/lists/L1/tasks?$skiptoken=p2"])
             }
             return (200, ["value": [
                 ["id": "t3", "title": "Shop", "status": "completed", "importance": "low",
