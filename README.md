@@ -26,7 +26,9 @@ them together; double-click to edit; ⌫ to delete; ⌘Z to undo;
 ⌘R (or the ↻ button) refreshes; ⌘, (or the gear button) opens Settings; ⌘= / ⌘- zoom the timeline and note, ⌘0 resets
 (also in Settings → Zoom).
 Events with a Zoom, Meet, Teams, Webex or Jitsi link get a camera button that joins the call.
-⌘M (or double-clicking the header) collapses the sticky to just what's on now or next;
+⌘M (or double-clicking the header) collapses the sticky to just what's on now or next —
+in the Reminders tab, to one reminder at a time (scroll over it to flip through, tick it
+off for the next), under the event on now;
 ⌃⌥S shows or hides it from any app (Settings → Shortcuts).
 The checklist button shows your reminders from Apple Reminders, Todoist, TickTick or the
 tasks in an Obsidian vault, either as a tab of this sticky (the default) or in their own

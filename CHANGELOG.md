@@ -2,6 +2,15 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.15.0 — 2026-09-30
+
+### Added
+- **Compact reminders**: in the Reminders tab, compact mode (⌘M) shows one reminder at a time, with its due time and list. Scroll over it, or use the arrows that appear on hover, to flip through them; tick it off and the next slides in. The chip in the header shows Today or Lists and how many are left (click to switch). While an event is on, it sits above the reminder, filling with its colour as it goes.
+
+### Changed
+- **Compact mode stays on** when you switch between the calendar and the Reminders tab.
+- The menu-bar menu only offers **Show/Hide Reminders** when reminders have their own sticky.
+
 ## 0.14.0 — 2026-09-30
 
 ### Added
