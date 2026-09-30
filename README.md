@@ -32,9 +32,10 @@ in the Reminders tab, to one reminder at a time (scroll over it to flip through,
 off for the next, click it to edit, right-click for more), under the event on now;
 ⌃⌥S shows or hides it from any app (Settings → Shortcuts). Optionally, the stickies fade
 when left alone and come back when you point at them (Settings → General → Fade when idle).
-The checklist button shows your reminders from Apple Reminders, Todoist, TickTick or the
-tasks in an Obsidian vault, either as a tab of this sticky (the default) or in their own
+The checklist button shows your reminders from Apple Reminders, Todoist, TickTick, Things (beta), the
+tasks in an Obsidian vault, or Microsoft To Do, either as a tab of this sticky (the default) or in their own
 sticky; the first time, it asks which source and where (Settings → Reminders changes both).
+With Things, the day is Things' "When" (so Today matches Things' Today) and deadlines show beside it.
 Switch between Today (overdue and due today) and whole lists. Tick and add them there;
 click one to change its date and time, importance (!, !!, !!!) and notes, or postpone it
 (+1 h, +3 h, tomorrow, next week; also on right-click); ⌘F searches all
