@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.21.3 — 2026-09-30
+
+### Fixed
+- **Unticked reminders no longer vanish for a moment** (the real cause this time). A refresh still running from an earlier tick could finish after an untick and read the task as neither open nor completed, so it disappeared until the next refresh. Refreshes that began before a change are now ignored. Tested against Todoist, which turned out to show its changes immediately; 0.21.2's allowance for a slow Todoist is removed.
+
 ## 0.21.2 — 2026-09-30
 
 ### Fixed
