@@ -30,6 +30,17 @@ struct AppSettingsTests {
         #expect(reloaded.opacity == 0.7)
     }
 
+    @Test func fullOpacityIsSolidAndTheDefaultIsUnchanged() {
+        let s = AppSettings(defaults: defaults)
+        #expect(s.solidity == 0)                 // the default, 92 %
+        s.setOpacity(1)
+        #expect(s.solidity == 1)
+        s.setOpacity(0.96)
+        #expect(abs(s.solidity - 0.5) < 0.0001)
+        s.setOpacity(0.6)
+        #expect(s.solidity == 0)
+    }
+
     @Test func clampsOpacity() {
         let s = AppSettings(defaults: defaults)
         s.setOpacity(0.1)

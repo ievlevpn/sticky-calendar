@@ -9,7 +9,7 @@ struct RemindersCompactView<Header: View>: View {
     let store: ReminderStore
     let calendarStore: CalendarStore
     let settings: ReminderSettings
-    let opacity: Double
+    let appSettings: AppSettings
     let header: Header
     let onExpand: () -> Void
     /// The window's height for what's showing: header, event if any, reminder.
@@ -40,7 +40,7 @@ struct RemindersCompactView<Header: View>: View {
                 reminderRow(items)
                 Spacer(minLength: 0)
             }
-            .background(VisualEffectBackground().opacity(opacity))
+            .background(StickyBackground(settings: appSettings))
             .onChange(of: height, initial: true) { _, height in onHeightChange(height) }
         }
         .task(id: settings.isPlacementChosen) {

@@ -31,7 +31,7 @@ struct StickyContentView: View {
         Group {
             if showsRemindersTab, settings.isCompact {
                 RemindersCompactView(store: reminderStore, calendarStore: store, settings: reminderSettings,
-                                     opacity: settings.opacity, header: header, onExpand: onToggleCompact,
+                                     appSettings: settings, header: header, onExpand: onToggleCompact,
                                      onHeightChange: onRemindersCompactHeight)
             } else {
                 VStack(spacing: 0) {
@@ -46,7 +46,7 @@ struct StickyContentView: View {
                         fullContent
                     }
                 }
-                .background(VisualEffectBackground().opacity(settings.opacity))
+                .background(StickyBackground(settings: settings))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -103,6 +103,6 @@ struct RemindersWindowContent: View {
             RemindersView(store: store, settings: settings, zoom: appSettings.zoom, onChoosePlacement: { _ in })
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(VisualEffectBackground().opacity(appSettings.opacity))
+        .background(StickyBackground(settings: appSettings))
     }
 }

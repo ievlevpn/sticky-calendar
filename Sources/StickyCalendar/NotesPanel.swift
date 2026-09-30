@@ -107,6 +107,6 @@ struct NoteWindowContent: View {
             NoteEditor(notepad: notepad, controller: editor, zoom: appSettings.zoom)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(VisualEffectBackground().opacity(appSettings.opacity))
+        .background(StickyBackground(settings: appSettings))
     }
 }

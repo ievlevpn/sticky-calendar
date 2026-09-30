@@ -21,6 +21,19 @@ struct VisualEffectBackground: NSViewRepresentable {
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 
+/// A sticky's background: the frosted material at the chosen opacity, turning solid over the
+/// top of the range (see `AppSettings.solidity`), so 100 % is fully opaque.
+struct StickyBackground: View {
+    let settings: AppSettings
+
+    var body: some View {
+        ZStack {
+            VisualEffectBackground().opacity(settings.opacity)
+            Color(nsColor: .windowBackgroundColor).opacity(settings.solidity)
+        }
+    }
+}
+
 @MainActor
 enum SystemLinks {
     /// Shows the event in Calendar.app; falls back to just opening Calendar.app.

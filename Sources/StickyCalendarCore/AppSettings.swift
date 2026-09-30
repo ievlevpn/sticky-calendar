@@ -21,6 +21,9 @@ public final class AppSettings {
     }
 
     public static let opacityRange: ClosedRange<Double> = 0.5...1.0
+    /// Above this opacity (the default), a solid backdrop blends in under the frosted
+    /// material, which is see-through even at full strength; at 100 % it's fully opaque.
+    public static let solidFromOpacity = 0.92
     /// Choices for how long a sticky waits, untouched, before it fades (seconds).
     public static let idleFadeDelays: [Double] = [5, 10, 30, 60, 120, 300, 600]
     /// How much of a sticky fading takes away: a little to nearly all of it.
@@ -161,6 +164,12 @@ public final class AppSettings {
     public func setOpacity(_ value: Double) {
         opacity = Self.clampOpacity(value)
         defaults.set(opacity, forKey: Key.opacity)
+    }
+
+    /// How much solid backdrop shows at the current opacity: 0 up to `solidFromOpacity`,
+    /// rising to 1 at 100 %.
+    public var solidity: Double {
+        max(0, (opacity - Self.solidFromOpacity) / (1 - Self.solidFromOpacity))
     }
 
     private static func clampOpacity(_ value: Double) -> Double {
