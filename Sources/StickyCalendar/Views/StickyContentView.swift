@@ -66,6 +66,29 @@ struct StickyContentView: View {
             if !item.canUndoDelete { Text("This can't be undone.") }
         }
         .confirmationDialog(
+            "Delete \(store.pendingGroupDelete?.count ?? 0) events?",
+            isPresented: Binding(get: { store.pendingGroupDelete != nil },
+                                 set: { if !$0 { store.cancelPendingGroupDelete() } }),
+            titleVisibility: .visible,
+            presenting: store.pendingGroupDelete
+        ) { items in
+            if items.contains(where: \.isRecurring) {
+                Button("Delete These Events Only", role: .destructive) { store.confirmGroupDelete(items, span: .thisEvent) }
+                Button("Also Delete Future Repeats", role: .destructive) {
+                    store.confirmGroupDelete(items, span: .futureEvents)
+                }
+            } else {
+                Button("Delete", role: .destructive) { store.confirmGroupDelete(items, span: .thisEvent) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { items in
+            if items.allSatisfy({ !$0.canUndoDelete }) {
+                Text("This can't be undone.")
+            } else if items.contains(where: { !$0.canUndoDelete }) {
+                Text("Undo won't bring back the repeating events or meetings.")
+            }
+        }
+        .confirmationDialog(
             "This is a repeating event.",
             isPresented: Binding(get: { store.pendingEdit != nil }, set: { if !$0 { store.cancelPendingEdit() } }),
             titleVisibility: .visible,

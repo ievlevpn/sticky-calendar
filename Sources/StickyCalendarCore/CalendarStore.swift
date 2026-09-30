@@ -1,10 +1,30 @@
 import Foundation
 import Observation
 
+/// One event before and after an edit.
+public struct EventChange: Equatable, Sendable {
+    public var original: EventItem
+    public var updated: EventItem
+
+    public init(original: EventItem, updated: EventItem) {
+        self.original = original
+        self.updated = updated
+    }
+}
+
 /// An edit to a recurring event, waiting for the user to pick "this" or "future" events.
 public struct PendingEdit: Equatable, Sendable {
     public var original: EventItem
     public var updated: EventItem
+    /// Events moved together with this one (a multi-selection). The span choice applies to
+    /// the recurring ones among them.
+    public var alongside: [EventChange] = []
+
+    /// The edited version of the event `id`, if this edit changes it.
+    public func updated(id: String) -> EventItem? {
+        if original.id == id { return updated }
+        return alongside.first { $0.original.id == id }?.updated
+    }
 }
 
 /// Where the timeline should scroll to.
@@ -56,10 +76,23 @@ public final class CalendarStore {
     /// Open this block's editor with the title focused (Return).
     public private(set) var editRequest: EventRequest?
     @ObservationIgnored private var requestCounter = 0
-    public var selectedID: String?
+    /// The selected blocks (⌘- or ⇧-click adds and removes them).
+    public private(set) var selectedIDs: Set<String> = []
+    private var primarySelection: String?
+    /// The selected block the keyboard acts on: the one clicked last. Setting it selects
+    /// that block alone.
+    public var selectedID: String? {
+        get { selectedIDs.isEmpty ? nil : primarySelection }
+        set {
+            primarySelection = newValue
+            selectedIDs = newValue.map { [$0] } ?? []
+        }
+    }
     public var lastError: String?
     public var pendingEdit: PendingEdit?
     public var pendingDelete: EventItem?
+    /// Several selected events waiting for confirmation before deleting.
+    public var pendingGroupDelete: [EventItem]?
 
     @ObservationIgnored public let undoManager = UndoManager()
     @ObservationIgnored private let source: EventSource
@@ -116,7 +149,26 @@ public final class CalendarStore {
             .sorted { $0.start < $1.start }
         timedEvents = events.filter { !$0.isAllDay }
         allDayEvents = events.filter(\.isAllDay)
-        if let id = selectedID, !timedEvents.contains(where: { $0.id == id }) { selectedID = nil }
+        let present = Set(timedEvents.map(\.id))
+        if !selectedIDs.isSubset(of: present) {
+            selectedIDs.formIntersection(present)
+            if let id = primarySelection, !selectedIDs.contains(id) { primarySelection = firstSelected() }
+        }
+    }
+
+    /// Adds `id` to the selection, or takes it out if it's already in.
+    public func toggleSelection(_ id: String) {
+        if selectedIDs.contains(id) {
+            selectedIDs.remove(id)
+            if primarySelection == id { primarySelection = firstSelected() }
+        } else {
+            selectedIDs.insert(id)
+            primarySelection = id
+        }
+    }
+
+    private func firstSelected() -> String? {
+        navigationOrder.first { selectedIDs.contains($0.id) }?.id
     }
 
     /// The refresh button and ⌘R: asks the calendars to sync, and shows what's there now.
@@ -261,14 +313,25 @@ public final class CalendarStore {
     /// Applies an edit, or parks it in `pendingEdit` when a recurring event needs a span choice.
     /// Only fields that actually changed are cleaned up, so re-saving an event never alters it.
     public func requestUpdate(from original: EventItem, to updated: EventItem) {
-        guard !original.isReadOnly, updated != original else { return }
-        var cleaned = updated.normalized()
-        if updated.title == original.title { cleaned.title = original.title }
-        guard cleaned != original else { return }
-        if original.isRecurring {
-            pendingEdit = PendingEdit(original: original, updated: cleaned)
+        requestUpdates([EventChange(original: original, updated: updated)])
+    }
+
+    /// Applies several edits at once (a multi-selection moved together) as one undo step.
+    /// If any is recurring, asks once (`pendingEdit`); the answer applies to all recurring ones.
+    public func requestUpdates(_ changes: [EventChange]) {
+        let cleaned = changes.compactMap { change -> EventChange? in
+            let (original, updated) = (change.original, change.updated)
+            guard !original.isReadOnly, updated != original else { return nil }
+            var cleaned = updated.normalized()
+            if updated.title == original.title { cleaned.title = original.title }
+            return cleaned == original ? nil : EventChange(original: original, updated: cleaned)
+        }
+        if let recurring = cleaned.firstIndex(where: \.original.isRecurring) {
+            var others = cleaned
+            let first = others.remove(at: recurring)
+            pendingEdit = PendingEdit(original: first.original, updated: first.updated, alongside: others)
         } else {
-            update(from: original, to: cleaned, span: .thisEvent)
+            apply(cleaned, span: .thisEvent)
         }
     }
 
@@ -290,7 +353,16 @@ public final class CalendarStore {
     /// Takes the edit explicitly: a dialog may clear `pendingEdit` before its button runs.
     public func confirmEdit(_ edit: PendingEdit, span: EditSpan) {
         pendingEdit = nil
-        update(from: edit.original, to: edit.updated, span: span)
+        apply([EventChange(original: edit.original, updated: edit.updated)] + edit.alongside, span: span)
+    }
+
+    /// `span` applies to recurring events; the others are always saved as single events.
+    /// The undo manager groups by event, so the whole batch undoes in one step.
+    private func apply(_ changes: [EventChange], span: EditSpan) {
+        for change in changes {
+            update(from: change.original, to: change.updated, span: change.original.isRecurring ? span : .thisEvent)
+        }
+        if changes.count > 1 { undoManager.setActionName("Move Events") }
     }
 
     public func cancelPendingEdit() { pendingEdit = nil }
@@ -301,10 +373,25 @@ public final class CalendarStore {
         pendingDelete = item
     }
 
+    /// ⌫: asks to delete the selected blocks (read-only ones are left alone).
     public func requestDeleteSelected() {
-        guard let id = selectedID, let item = timedEvents.first(where: { $0.id == id }) else { return }
-        requestDelete(item)
+        let items = navigationOrder.filter { selectedIDs.contains($0.id) && !$0.isReadOnly }
+        if items.count > 1 {
+            pendingGroupDelete = items
+        } else if let item = items.first {
+            requestDelete(item)
+        }
     }
+
+    /// `span` applies to recurring events; the others are deleted as single events. The undo
+    /// manager groups by event, so one Undo restores every event that can be restored.
+    public func confirmGroupDelete(_ items: [EventItem], span: EditSpan) {
+        pendingGroupDelete = nil
+        for item in items { delete(item, span: item.isRecurring ? span : .thisEvent) }
+        if items.filter(\.canUndoDelete).count > 1 { undoManager.setActionName("Delete Events") }
+    }
+
+    public func cancelPendingGroupDelete() { pendingGroupDelete = nil }
 
     /// Takes the item explicitly: a dialog may clear `pendingDelete` before its button runs.
     public func confirmDelete(_ item: EventItem, span: EditSpan) {

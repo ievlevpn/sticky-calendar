@@ -10,8 +10,8 @@ struct DayTimelineView: View {
     /// Scales hours, labels and event text together (Settings → Zoom, ⌘= / ⌘- / ⌘0).
     let zoom: CGFloat
 
-    /// The event being moved or resized, with its live (snapped) times.
-    @State private var dragPreview: EventItem?
+    /// The events being moved or resized, with their live (snapped) times, by id.
+    @State private var dragPreviews: [String: EventItem] = [:]
     /// A new event being dragged out or edited before its first save.
     @State private var draft: EventItem?
     @State private var isDraftEditorOpen = false
@@ -198,8 +198,8 @@ struct DayTimelineView: View {
     }
 
     private func block(_ item: EventItem, slot: ColumnSlot, geo: TimelineGeometry, width: CGFloat, now: Date) -> some View {
-        let shown = dragPreview.flatMap { $0.id == item.id ? $0 : nil }
-            ?? store.pendingEdit.flatMap { $0.original.id == item.id ? $0.updated : nil }
+        let shown = dragPreviews[item.id]
+            ?? store.pendingEdit?.updated(id: item.id)
             ?? item
         let frame = geo.frame(for: shown)
         let columnWidth = width / CGFloat(slot.count)
@@ -208,7 +208,7 @@ struct DayTimelineView: View {
         return EventBlockView(
             item: shown,
             color: color,
-            isSelected: store.selectedID == item.id,
+            isSelected: store.selectedIDs.contains(item.id),
             isPast: now >= shown.end,
             height: CGFloat(frame.height),
             zoom: zoom
@@ -230,10 +230,17 @@ struct DayTimelineView: View {
             editingID = item.id
         }
         // Simultaneous, so selection is immediate: a plain single-tap below a double-tap
-        // waits out the double-click interval (~0.4 s) before firing.
-        .simultaneousGesture(TapGesture().onEnded { store.selectedID = item.id })
+        // waits out the double-click interval (~0.4 s) before firing. ⌘- or ⇧-click adds
+        // the block to the selection (or takes it out).
+        .simultaneousGesture(TapGesture().onEnded {
+            if !NSEvent.modifierFlags.isDisjoint(with: [.command, .shift]) {
+                store.toggleSelection(item.id)
+            } else {
+                store.selectedID = item.id
+            }
+        })
         .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(store.selectedID == item.id ? .isSelected : [])
+        .accessibilityAddTraits(store.selectedIDs.contains(item.id) ? .isSelected : [])
         .popover(
             isPresented: Binding(get: { editingID == item.id }, set: { if !$0 { editingID = nil } }),
             arrowEdge: .leading
@@ -292,14 +299,32 @@ struct DayTimelineView: View {
         DragGesture(minimumDistance: 2, coordinateSpace: .named(Self.space))
             .onChanged { value in
                 guard !item.isReadOnly else { return }
-                store.selectedID = item.id
+                // Dragging a selected block moves the whole selection along with it.
+                if !store.selectedIDs.contains(item.id) { store.selectedID = item.id }
                 let delta = Double(value.translation.height) / geo.pointsPerSecond
-                dragPreview = EventDrag.apply(kind, to: item, delta: delta)
+                let dragged = EventDrag.apply(kind, to: item, delta: delta)
+                var previews = [item.id: dragged]
+                if kind == .move {
+                    // By the dragged block's snapped shift, so the others keep their spacing.
+                    let shift = dragged.start.timeIntervalSince(item.start)
+                    for other in store.timedEvents where store.selectedIDs.contains(other.id)
+                        && other.id != item.id && !other.isReadOnly {
+                        var moved = other
+                        moved.start += shift
+                        moved.end += shift
+                        previews[other.id] = moved
+                    }
+                }
+                dragPreviews = previews
             }
             .onEnded { _ in
-                guard let preview = dragPreview else { return }
-                dragPreview = nil
-                store.requestUpdate(from: item, to: preview)
+                guard !dragPreviews.isEmpty else { return }
+                let previews = dragPreviews
+                dragPreviews = [:]
+                let originals = [item] + store.timedEvents.filter { $0.id != item.id }
+                store.requestUpdates(originals.compactMap { original in
+                    previews[original.id].map { EventChange(original: original, updated: $0) }
+                })
             }
     }
 
