@@ -45,11 +45,42 @@ struct NotepadTests {
         n.setText("in the app, 28th")
         n.setDay(at(9, day: 27))
         n.setText("in the app, 27th")
-        n.setFolder(folder.path)
+        #expect(n.setFolder(folder.path) == NoteMove(kept: 1))   // the 28th: a different note was there
         #expect(read(folder.appendingPathComponent("2026-09-28.md")) == "already there")
         #expect(read(folder.appendingPathComponent("2026-09-27.md")) == "in the app, 27th")
         n.setDay(at(9))
         #expect(n.text == "already there")
+    }
+
+    @Test func theSameNoteAlreadyThereIsNotCountedAsKept() throws {
+        let folder = tempFolder()
+        try "same".write(to: folder.appendingPathComponent("2026-09-28.md"), atomically: true, encoding: .utf8)
+        let n = Notepad(defaults: defaults, calendar: utc, day: at(9))
+        n.setText("same")
+        #expect(n.setFolder(folder.path) == NoteMove(kept: 0))
+    }
+
+    @Test func movingToAnotherFolderBringsWhatWasWrittenInTheFirst() throws {
+        let first = tempFolder(), second = tempFolder()
+        let n = Notepad(defaults: defaults, calendar: utc, day: at(9))
+        n.setText("before any folder")
+        n.setFolder(first.path)
+        n.setText("written in the first folder")
+        try "edited in Obsidian".write(to: first.appendingPathComponent("2026-09-27.md"), atomically: true, encoding: .utf8)
+        n.setFolder(second.path)
+        #expect(read(second.appendingPathComponent("2026-09-28.md")) == "written in the first folder")
+        #expect(read(second.appendingPathComponent("2026-09-27.md")) == "edited in Obsidian")
+        #expect(n.text == "written in the first folder")
+    }
+
+    @Test func knowsWhenItsFolderIsGone() throws {
+        let folder = tempFolder()
+        let n = Notepad(defaults: defaults, calendar: utc, day: at(9))
+        #expect(n.isFolderReachable)                   // no folder: nothing to reach
+        n.setFolder(folder.path)
+        #expect(n.isFolderReachable)
+        try FileManager.default.removeItem(at: folder)
+        #expect(!n.isFolderReachable)
     }
 
     @Test func picksUpEditsMadeElsewhereAndBringsFilesBackIntoTheApp() throws {

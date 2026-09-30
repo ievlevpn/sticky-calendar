@@ -111,19 +111,26 @@ public final class Notepad {
 
     // MARK: Where notes are kept
 
-    /// Keeps notes as Markdown files in `path`, or (nil) in the app. Notes move along without
-    /// overwriting: into the folder, the app's notes that have no file there yet; back into
-    /// the app, every note file in the folder (the files stay).
-    public func setFolder(_ path: String?) {
-        if let path {
-            copyAppNotes(into: path)
-        } else if let old = folderPath {
-            copyFolderNotes(from: old)
-        }
+    /// Keeps notes as Markdown files in `path`, or (nil) in the app. Leaving a folder first
+    /// brings its note files back into the app (the files stay); then, into a new folder, the
+    /// notes go that have no file there yet: existing files are never overwritten.
+    @discardableResult
+    public func setFolder(_ path: String?) -> NoteMove {
+        if let old = folderPath { copyFolderNotes(from: old) }
+        let move = path.map(copyAppNotes(into:)) ?? NoteMove()
         folderPath = path
         defaults.set(path, forKey: Key.folderPath)
         saveError = nil
         text = stored(forKey: shownKey)
+        return move
+    }
+
+    /// False when notes are kept in a folder that can't be found (deleted, or on a drive
+    /// that isn't connected).
+    public var isFolderReachable: Bool {
+        guard let folderPath else { return true }
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: folderPath, isDirectory: &isDirectory) && isDirectory.boolValue
     }
 
     /// Renames note files from now on (files already there keep their names).
@@ -186,14 +193,19 @@ public final class Notepad {
         }
     }
 
-    private func copyAppNotes(into folder: String) {
+    private func copyAppNotes(into folder: String) -> NoteMove {
+        var move = NoteMove()
         var notes = dayNotes.map { (key: Optional($0.key), text: $0.value) }
         notes.append((key: nil, text: singleNote))
         for note in notes where !note.text.isEmpty {
             let url = fileURL(forKey: note.key, in: folder)
-            guard !FileManager.default.fileExists(atPath: url.path) else { continue }
+            if FileManager.default.fileExists(atPath: url.path) {
+                if (try? String(contentsOf: url, encoding: .utf8)) != note.text { move.kept += 1 }
+                continue
+            }
             try? write(note.text, to: url)
         }
+        return move
     }
 
     /// Every note file in the folder (and its subfolders, for names like "YYYY/MM/…").
@@ -249,6 +261,15 @@ public final class Notepad {
         height = max(value, Self.minHeight)
         defaults.set(height, forKey: Key.height)
     }
+}
+
+/// What choosing a notes folder did.
+public struct NoteMove: Equatable, Sendable {
+    /// Notes not copied because the folder already had a different one for that day (or
+    /// for the single note); the folder's files were kept as they were.
+    public var kept = 0
+
+    public init(kept: Int = 0) { self.kept = kept }
 }
 
 /// Where the note appears.

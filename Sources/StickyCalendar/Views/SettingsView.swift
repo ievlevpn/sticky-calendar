@@ -27,6 +27,8 @@ struct SettingsView: View {
     /// The note-name fields as typed; saved on Return or leaving the field.
     @State private var dayPatternDraft: String?
     @State private var singleNameDraft: String?
+    /// After choosing a notes folder: the days whose files there were kept.
+    @State private var keptNotesMessage: String?
     @FocusState private var focusedNameField: NameField?
 
     private enum NameField { case day, single }
@@ -339,7 +341,7 @@ struct SettingsView: View {
         Picker("Keep notes", selection: Binding(
             get: { notepad.folderPath != nil },
             set: { inFolder in
-                if inFolder { chooseNoteFolder() } else { notepad.setFolder(nil) }
+                if inFolder { chooseNoteFolder() } else { keepNotesInApp() }
             }
         )) {
             Text("In Sticky Calendar").tag(false)
@@ -357,6 +359,9 @@ struct SettingsView: View {
                 }
             }
             noteFileNames
+            if let keptNotesMessage {
+                Text(keptNotesMessage).font(.caption).foregroundStyle(.orange)
+            }
             if let error = notepad.saveError {
                 Text("Couldn't save the note: \(error)").font(.caption).foregroundStyle(.red)
             }
@@ -429,11 +434,40 @@ struct SettingsView: View {
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Keep Notes Here"
-        panel.message = "Choose a folder for your notes, e.g. your Obsidian vault's daily notes folder. Notes already in Sticky Calendar are copied there (existing files are left as they are)."
+        panel.message = "Choose a folder for your notes, e.g. your Obsidian vault's daily notes folder. Your notes are copied there; files already there are left as they are."
         if let current = notepad.folderPath { panel.directoryURL = URL(fileURLWithPath: current) }
         NSApp.activate()
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        notepad.setFolder(url.path)
+        guard panel.runModal() == .OK, let url = panel.url, url.path != notepad.folderPath else { return }
+        guard confirmLeavingUnreachableFolder(
+            "Notes written there since can't come along. The new folder gets the copies Sticky Calendar kept from before you chose it.",
+            button: "Use New Folder Anyway"
+        ) else { return }
+        let move = notepad.setFolder(url.path)
+        keptNotesMessage = move.kept == 0 ? nil
+            : move.kept == 1 ? "One note wasn't copied: the folder already had a different note for that day, which was kept as it is."
+            : "\(move.kept) notes weren't copied: the folder already had different notes for those days, which were kept as they are."
+    }
+
+    private func keepNotesInApp() {
+        guard confirmLeavingUnreachableFolder(
+            "Sticky Calendar will show the notes it had before you chose the folder; anything written there since won't be here. Connect the drive and try again, or switch anyway.",
+            button: "Switch Anyway"
+        ) else { return }
+        keptNotesMessage = nil
+        notepad.setFolder(nil)
+    }
+
+    /// Leaving a folder brings its notes along; asks first when it can't be found.
+    private func confirmLeavingUnreachableFolder(_ detail: String, button: String) -> Bool {
+        guard !notepad.isFolderReachable, let folder = notepad.folderPath else { return true }
+        let alert = NSAlert()
+        alert.messageText = "Can't find the notes folder \((folder as NSString).abbreviatingWithTildeInPath)"
+        alert.informativeText = detail
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: button)
+        NSApp.activate()
+        return alert.runModal() == .alertSecondButtonReturn
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
