@@ -287,6 +287,7 @@ public final class ReminderStore {
             let text = notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             changed.notes = text.isEmpty ? nil : text
         }
+        changed = fitted(changed)
         guard changed != original else { return }
         await save(changed, undo: original, actionName: "Edit Reminder")
     }
@@ -298,6 +299,7 @@ public final class ReminderStore {
         var changed = original
         changed.due = due.date
         changed.dueHasTime = due.hasTime
+        changed = fitted(changed)
         guard changed != original else { return }
         await save(changed, undo: original, actionName: "Postpone Reminder")
     }
@@ -374,7 +376,7 @@ public final class ReminderStore {
     /// Saves as new (also restores a deleted one, which gets a new identifier).
     private func insert(_ item: ReminderItem, inverse: UndoSlot? = nil) async -> ReminderItem? {
         guard let source else { return nil }
-        var fresh = item
+        var fresh = fitted(item)
         fresh.id = ""
         generation += 1
         do {
@@ -449,6 +451,17 @@ public final class ReminderStore {
 
     private func replace(_ item: ReminderItem) {
         if let i = items.firstIndex(where: { $0.id == item.id }) { items[i] = item }
+    }
+
+    /// `item` as its source can keep it: no time, or no importance, where it has none.
+    private func fitted(_ item: ReminderItem) -> ReminderItem {
+        var item = item
+        if !(source?.supportsTime ?? true), item.dueHasTime {
+            item.due = item.due.map { calendar.startOfDay(for: $0) }
+            item.dueHasTime = false
+        }
+        if !(source?.supportsPriority ?? true) { item.priority = .none }
+        return item
     }
 
     /// The latest known state of `item` (a view may hold an older copy).

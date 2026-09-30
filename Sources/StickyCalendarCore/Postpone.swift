@@ -29,6 +29,9 @@ public enum Postpone: CaseIterable, Sendable {
         }
     }
 
+    /// "+1 h" and "+3 h": they need a source whose due dates have times.
+    public var isHours: Bool { self == .oneHour || self == .threeHours }
+
     /// The new due date for a reminder due at `due` (nil: none), timed or not.
     public func due(from due: Date?, hasTime: Bool, now: Date, calendar: Calendar) -> Due {
         switch self {

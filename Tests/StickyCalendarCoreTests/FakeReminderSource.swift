@@ -14,6 +14,8 @@ final class FakeReminderSource: ReminderSource {
     var stored: [ReminderItem] = []
     var failNextSave = false
     var canEditNotes = true
+    var supportsTime = true
+    var supportsPriority = true
     /// Repeat daily, as Todoist's do: completing one moves it to the next day, still open.
     var repeatingIDs: Set<String> = []
     /// Pause the next read between its open and its completed reminders (Todoist reads them

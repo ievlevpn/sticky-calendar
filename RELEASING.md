@@ -84,3 +84,21 @@ rerun it to change the icon. README images live in `docs/images/`.
 The app is not notarized, so macOS blocks the first launch of a downloaded copy. Open
 System Settings → Privacy & Security and click **Open Anyway** once. Updates installed
 over it (DMG or `brew upgrade`) keep working and keep their Calendar access.
+
+## Microsoft To Do: app registration (once)
+
+Microsoft To Do is offered only when `MicrosoftAuth.clientID`
+(`Sources/StickyCalendarCore/MicrosoftAuth.swift`) is set.
+
+1. Sign in to https://entra.microsoft.com with a Microsoft account (a free Azure account
+   creates the directory if you have none).
+2. App registrations → New registration: name "Sticky Calendar"; supported account types
+   "Accounts in any organizational directory and personal Microsoft accounts".
+3. Authentication → Add a platform → Mobile and desktop applications → custom redirect URI
+   `http://localhost`. Under Advanced settings, set "Allow public client flows" to Yes.
+4. API permissions: Microsoft Graph → Delegated → `Tasks.ReadWrite` (and `offline_access`).
+   No admin consent needed.
+5. Copy the Application (client) ID into `MicrosoftAuth.clientID`. It's not a secret.
+
+The consent screen shows the app as unverified; personal accounts can still sign in, some
+work or school directories need an admin to approve it.

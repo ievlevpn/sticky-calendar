@@ -250,6 +250,13 @@ struct RemindersView: View {
                     .lineLimit(1)
                     .fixedSize()
             }
+            if let deadline = item.deadline, !item.isCompleted {
+                Text("Deadline " + dayText(deadline, hasTime: false))
+                    .font(.system(size: 10.5 * zoom).monospacedDigit())
+                    .foregroundStyle(deadline < Calendar.autoupdatingCurrent.startOfDay(for: Date()) ? Color.red : Color.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 3 * zoom)
