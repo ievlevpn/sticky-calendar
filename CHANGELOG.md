@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.17.1 — 2026-09-30
+
+### Fixed
+- With keyboard navigation turned on in System Settings, pressing Tab could put a blue focus ring on one of the header's buttons (e.g. Settings) that seemed stuck there. The stickies' icon buttons no longer take keyboard focus; their shortcuts work as before.
+
 ## 0.17.0 — 2026-09-30
 
 ### Added
