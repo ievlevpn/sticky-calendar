@@ -24,6 +24,12 @@ struct SettingsView: View {
     @State private var query = ""
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginError: String?
+    /// The note-name fields as typed; saved on Return or leaving the field.
+    @State private var dayPatternDraft: String?
+    @State private var singleNameDraft: String?
+    @FocusState private var focusedNameField: NameField?
+
+    private enum NameField { case day, single }
     @FocusState private var isSearchFocused: Bool
 
     var body: some View {
@@ -187,7 +193,8 @@ struct SettingsView: View {
                     ? "The note follows the day you're viewing, like a journal."
                     : "One note, whichever day you're viewing.")
         }
-        add(.note, "Keep notes in a folder", ["markdown", "md", "files", "obsidian", "vault", "save", "export"]) {
+        add(.note, "Keep notes in a folder", ["markdown", "md", "files", "obsidian", "vault", "save", "export",
+                                              "file name", "daily note format", "pattern"]) {
             noteFolder
         }
 
@@ -349,13 +356,64 @@ struct SettingsView: View {
                     Button("Show") { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder) }
                 }
             }
+            noteFileNames
             if let error = notepad.saveError {
                 Text("Couldn't save the note: \(error)").font(.caption).foregroundStyle(.red)
             }
         }
         caption(notepad.folderPath == nil
                 ? "Or keep them as .md files, e.g. in an Obsidian vault. Existing notes are copied there."
-                : "Each day's note is a file like 2026-09-30.md (as Obsidian's daily notes); a single note is “\(Notepad.singleNoteFileName)”. Edits made to them elsewhere show up here.")
+                : "Edits made to the files elsewhere show up here. Renaming applies from now on: files already there keep their names.")
+    }
+
+    /// The day notes' name pattern (Obsidian's date tokens, with presets) and the single note's name.
+    @ViewBuilder
+    private var noteFileNames: some View {
+        let dayPattern = dayPatternDraft ?? notepad.fileNames.dayPattern
+        let singleName = singleNameDraft ?? notepad.fileNames.singleName
+        let preview = NoteFileNames(dayPattern: dayPattern, singleName: singleName)
+        LabeledContent("Day note name") {
+            HStack(spacing: 4) {
+                TextField("", text: Binding(get: { dayPattern }, set: { dayPatternDraft = $0 }),
+                          prompt: Text(NoteFileNames.defaultDayPattern))
+                    .focused($focusedNameField, equals: .day)
+                    .onSubmit(saveNoteFileNames)
+                    .frame(maxWidth: 190)
+                Menu {
+                    ForEach(NoteFileNames.dayPatternPresets, id: \.self) { preset in
+                        Button("\(preset)   →  \(NoteFileNames(dayPattern: preset).dayPath(for: Date(), calendar: .autoupdatingCurrent))") {
+                            dayPatternDraft = preset
+                            saveNoteFileNames()
+                        }
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Common patterns")
+            }
+        }
+        caption("Today's note: \(preview.dayPath(for: Date(), calendar: .autoupdatingCurrent)). YYYY year, MM month, MMM or MMMM its name, DD day, ddd or dddd weekday, [text] as is; / makes folders.")
+        LabeledContent("Single note name") {
+            TextField("", text: Binding(get: { singleName }, set: { singleNameDraft = $0 }),
+                      prompt: Text(NoteFileNames.defaultSingleName))
+                .focused($focusedNameField, equals: .single)
+                .onSubmit(saveNoteFileNames)
+                .frame(maxWidth: 190)
+        }
+        .onChange(of: focusedNameField) { _, _ in saveNoteFileNames() }
+        .onDisappear(perform: saveNoteFileNames)
+    }
+
+    private func saveNoteFileNames() {
+        guard dayPatternDraft != nil || singleNameDraft != nil else { return }
+        let names = NoteFileNames(dayPattern: dayPatternDraft ?? notepad.fileNames.dayPattern,
+                                  singleName: singleNameDraft ?? notepad.fileNames.singleName)
+        dayPatternDraft = nil
+        singleNameDraft = nil
+        if names != notepad.fileNames { notepad.setFileNames(names) }
     }
 
     private func caption(_ text: String) -> some View {

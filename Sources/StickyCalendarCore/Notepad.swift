@@ -4,8 +4,9 @@ import Observation
 /// The scratch note under the timeline: its text, whether it's shown and how tall it is,
 /// persisted on every change. By default each day has its own note, which follows the day
 /// being viewed; otherwise there is a single note. Notes are kept in UserDefaults, or as
-/// Markdown files in a folder the user picks (e.g. in an Obsidian vault): `2026-09-30.md`
-/// for a day's note, like Obsidian's daily notes, and `Sticky Note.md` for the single note.
+/// Markdown files in a folder the user picks (e.g. in an Obsidian vault), named as in
+/// `NoteFileNames`: by default `2026-09-30.md` for a day's note, like Obsidian's daily
+/// notes, and `Sticky Note.md` for the single note.
 @MainActor
 @Observable
 public final class Notepad {
@@ -18,12 +19,12 @@ public final class Notepad {
         static let placement = "notePlacement"
         static let isWindowPinned = "noteWindowPinned"
         static let folderPath = "noteFolderPath"
+        static let dayFilePattern = "noteDayFilePattern"
+        static let singleFileName = "noteSingleFileName"
     }
 
     public static let minHeight: Double = 60
     public static let defaultHeight: Double = 140
-    /// The single note's file name, when notes are kept in a folder.
-    public static let singleNoteFileName = "Sticky Note.md"
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let calendar: Calendar
@@ -48,6 +49,8 @@ public final class Notepad {
     public private(set) var height: Double
     /// The folder notes are kept in as Markdown files; nil keeps them in the app.
     public private(set) var folderPath: String?
+    /// How the files in `folderPath` are named.
+    public private(set) var fileNames: NoteFileNames
     /// Why the last save to the folder failed (nil when it worked).
     public private(set) var saveError: String?
 
@@ -72,6 +75,8 @@ public final class Notepad {
         dayKey = key
         self.day = calendar.startOfDay(for: day)
         folderPath = defaults.string(forKey: Key.folderPath)
+        fileNames = NoteFileNames(dayPattern: defaults.string(forKey: Key.dayFilePattern) ?? NoteFileNames.defaultDayPattern,
+                                  singleName: defaults.string(forKey: Key.singleFileName) ?? NoteFileNames.defaultSingleName)
         text = ""
         isVisible = defaults.object(forKey: Key.isVisible) as? Bool ?? false
         placement = defaults.string(forKey: Key.placement).flatMap(NotePlacement.init(rawValue:)) ?? .pane
@@ -121,6 +126,14 @@ public final class Notepad {
         text = stored(forKey: shownKey)
     }
 
+    /// Renames note files from now on (files already there keep their names).
+    public func setFileNames(_ names: NoteFileNames) {
+        fileNames = names
+        defaults.set(names.dayPattern, forKey: Key.dayFilePattern)
+        defaults.set(names.singleName, forKey: Key.singleFileName)
+        text = stored(forKey: shownKey)
+    }
+
     /// Picks up changes made to the note's file elsewhere (e.g. in Obsidian).
     public func reloadFromFolder() {
         guard folderPath != nil else { return }
@@ -132,8 +145,15 @@ public final class Notepad {
     private var shownKey: String? { isPerDay ? dayKey : nil }
 
     private func fileURL(forKey key: String?, in folder: String) -> URL {
-        URL(fileURLWithPath: folder, isDirectory: true)
-            .appendingPathComponent(key.map { "\($0).md" } ?? Self.singleNoteFileName)
+        let path = key.flatMap(date(fromKey:)).map { fileNames.dayPath(for: $0, calendar: calendar) }
+            ?? fileNames.singlePath
+        return URL(fileURLWithPath: folder, isDirectory: true).appendingPathComponent(path)
+    }
+
+    /// Writes a note file, making the folders its name asks for ("2026/09/…").
+    private func write(_ value: String, to url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try value.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private func stored(forKey key: String?) -> String {
@@ -150,7 +170,7 @@ public final class Notepad {
             // An empty note gets no file; one that had a file keeps it, emptied.
             if value.isEmpty && !FileManager.default.fileExists(atPath: url.path) { return }
             do {
-                try value.write(to: url, atomically: true, encoding: .utf8)
+                try write(value, to: url)
                 saveError = nil
             } catch {
                 saveError = error.localizedDescription
@@ -172,18 +192,19 @@ public final class Notepad {
         for note in notes where !note.text.isEmpty {
             let url = fileURL(forKey: note.key, in: folder)
             guard !FileManager.default.fileExists(atPath: url.path) else { continue }
-            try? note.text.write(to: url, atomically: true, encoding: .utf8)
+            try? write(note.text, to: url)
         }
     }
 
+    /// Every note file in the folder (and its subfolders, for names like "YYYY/MM/…").
     private func copyFolderNotes(from folder: String) {
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []
-        for name in names {
+        let files = FileManager.default.enumerator(atPath: folder)?.compactMap { $0 as? String } ?? []
+        for path in files where path.hasSuffix(".md") && !path.hasPrefix(".") {
             let key: String?
-            if name == Self.singleNoteFileName {
+            if path == fileNames.singlePath {
                 key = nil
-            } else if name.range(of: #"^\d{4}-\d{2}-\d{2}\.md$"#, options: .regularExpression) != nil {
-                key = String(name.dropLast(3))
+            } else if let day = fileNames.day(fromPath: path, calendar: calendar) {
+                key = Self.key(for: day, calendar: calendar)
             } else {
                 continue
             }
@@ -196,6 +217,12 @@ public final class Notepad {
         }
         defaults.set(dayNotes, forKey: Key.dayNotes)
         defaults.set(singleNote, forKey: Key.text)
+    }
+
+    private func date(fromKey key: String) -> Date? {
+        let parts = key.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
     }
 
     private static func key(for date: Date, calendar: Calendar) -> String {

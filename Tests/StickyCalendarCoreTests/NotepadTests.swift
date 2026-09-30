@@ -32,7 +32,7 @@ struct NotepadTests {
         #expect(read(folder.appendingPathComponent("2026-09-29.md")) == nil)
         n.setPerDay(false)
         n.setText("one note")
-        #expect(read(folder.appendingPathComponent(Notepad.singleNoteFileName)) == "one note")
+        #expect(read(folder.appendingPathComponent(NoteFileNames().singlePath)) == "one note")
         // Read back by a fresh instance.
         let reloaded = Notepad(defaults: defaults, calendar: utc, day: at(9))
         #expect(reloaded.folderPath == folder.path && reloaded.text == "one note")
@@ -63,6 +63,21 @@ struct NotepadTests {
         n.setFolder(nil)
         #expect(n.text == "edited in Obsidian")
         #expect(read(folder.appendingPathComponent("2026-09-28.md")) == "edited in Obsidian") // files stay
+    }
+
+    @Test func customNamesPutDayNotesInFoldersAndReadThemBack() throws {
+        let folder = tempFolder()
+        let n = Notepad(defaults: defaults, calendar: utc, day: at(9, day: 30))
+        n.setFolder(folder.path)
+        n.setFileNames(NoteFileNames(dayPattern: "YYYY/MM/YYYY-MM-DD dddd", singleName: "Scratch"))
+        n.setText("Wednesday's")
+        #expect(read(folder.appendingPathComponent("2026/09/2026-09-30 Wednesday.md")) == "Wednesday's")
+        n.setPerDay(false)
+        n.setText("single")
+        #expect(read(folder.appendingPathComponent("Scratch.md")) == "single")
+        n.setPerDay(true)
+        n.setFolder(nil)                                          // back into the app, found in subfolders
+        #expect(n.text == "Wednesday's")
     }
 
     @Test func startsHiddenAndEmpty() {
