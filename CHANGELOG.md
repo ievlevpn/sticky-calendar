@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.19.0 — 2026-09-30
+
+### Added
+- **Cut, copy and paste events**: select one or several events and press ⌘C to copy or ⌘X to cut them, then ⌘V to paste copies onto the day you're viewing, at the same times. One ⌘Z undoes a cut or a paste. Copied events can also be pasted as text into other apps ("09:00–10:00 Standup"). Cutting a repeating event, or one with invitees, asks first, since it can't be undone.
+
 ## 0.18.1 — 2026-09-30
 
 ### Fixed
