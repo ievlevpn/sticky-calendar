@@ -310,6 +310,54 @@ public final class CalendarStore {
         }
     }
 
+    // MARK: Cut, copy and paste
+
+    /// ⌘C: the selected events, in reading order (read-only ones too: copying leaves them be).
+    public var selectedEvents: [EventItem] {
+        navigationOrder.filter { selectedIDs.contains($0.id) }
+    }
+
+    /// ⌘X, once the events are copied: removes the selected ones at once when all can be
+    /// restored (one Undo brings them back); otherwise asks first, as ⌫ does.
+    public func deleteSelectedForCut() {
+        let items = selectedEvents.filter { !$0.isReadOnly }
+        guard !items.isEmpty else { return }
+        guard items.allSatisfy(\.canUndoDelete) else { return requestDeleteSelected() }
+        for item in items { delete(item, span: .thisEvent) }
+        undoManager.setActionName(items.count > 1 ? "Cut Events" : "Cut Event")
+        selectedID = nil
+    }
+
+    /// ⌘V: new copies of `items` on the day being viewed, at the same times of day (several
+    /// keep their spacing, across days too), in the same calendar when it's visible and
+    /// writable, else the default one. One Undo removes them all. The copies end up selected.
+    @discardableResult
+    public func paste(_ items: [EventItem]) -> [EventItem] {
+        guard let first = items.map(\.start).min() else { return [] }
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: first), to: day).day ?? 0
+        let shift = { (date: Date) in self.calendar.date(byAdding: .day, value: days, to: date) ?? date }
+        let writable = Set(visibleCalendars.filter(\.isWritable).map(\.id))
+        var pasted: [EventItem] = []
+        for item in items {
+            let start = shift(item.start)
+            guard let draft = makeDraft(start: start, end: shift(item.end)) else {
+                lastError = "No visible calendar accepts new events."
+                break
+            }
+            var copy = EventItem(title: item.title, start: start, end: draft.end, isAllDay: item.isAllDay,
+                                 calendarID: writable.contains(item.calendarID) ? item.calendarID : draft.calendarID,
+                                 location: item.location, notes: item.notes,
+                                 alarmOffsets: item.alarmOffsets, url: item.url)
+            copy = copy.normalized()
+            if let saved = insert(copy) { pasted.append(saved) }
+        }
+        guard !pasted.isEmpty else { return [] }
+        undoManager.setActionName(pasted.count > 1 ? "Paste Events" : "Paste Event")
+        selectedIDs = Set(pasted.map(\.id))
+        primarySelection = pasted.last?.id
+        return pasted
+    }
+
     /// Applies an edit, or parks it in `pendingEdit` when a recurring event needs a span choice.
     /// Only fields that actually changed are cleaned up, so re-saving an event never alters it.
     public func requestUpdate(from original: EventItem, to updated: EventItem) {

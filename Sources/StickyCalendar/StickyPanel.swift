@@ -14,6 +14,10 @@ final class StickyPanel: FloatingPanel {
     private let reminderSettings: ReminderSettings
     private let onSettings: () -> Void
     private var keyMonitor: Any?
+    /// Events copied with ⌘C or ⌘X, and the pasteboard's change count when they were, so
+    /// ⌘V pastes them only while nothing else has been copied since.
+    private var copiedEvents: [EventItem] = []
+    private var copiedChangeCount = -1
 
     init(store: CalendarStore, settings: AppSettings, notepad: Notepad,
          reminderStore: ReminderStore, reminderSettings: ReminderSettings,
@@ -152,6 +156,22 @@ final class StickyPanel: FloatingPanel {
         resize(toHeight: height, animate: animate)
     }
 
+    /// Copies the selected events for ⌘V, and as text ("09:00–10:00 Standup") for other apps.
+    /// False when nothing is selected.
+    private func copySelectedEvents() -> Bool {
+        let events = store.selectedEvents
+        guard !events.isEmpty else { return false }
+        let time = { (date: Date) in date.formatted(date: .omitted, time: .shortened) }
+        let text = events.map { "\(time($0.start))–\(time($0.end)) \($0.title)" }.joined(separator: "\n")
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        copiedEvents = events
+        copiedChangeCount = pasteboard.changeCount
+        return true
+    }
+
+    /// ⌘C / ⌘X / ⌘V copy, cut and paste the selected events,
     /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning,
     /// ⌘O opens Calendar, ←/→ change day, ↑/↓ move the selection (or scroll), Page Up/Down
     /// scroll, Return edits the selection, Esc deselects —
@@ -231,6 +251,14 @@ final class StickyPanel: FloatingPanel {
             store.requestEditSelected()
         case (53, [], _): // Esc: drop the selection; otherwise let Esc through
             return store.clearSelection()
+        case (_, [.command], "c"):
+            return copySelectedEvents()
+        case (_, [.command], "x"):
+            guard copySelectedEvents() else { return false }
+            store.deleteSelectedForCut()
+        case (_, [.command], "v"):
+            guard NSPasteboard.general.changeCount == copiedChangeCount, !copiedEvents.isEmpty else { return false }
+            store.paste(copiedEvents)
         case (_, [.command], "z"):
             store.undoManager.undo()
         case (_, [.command, .shift], "z"):
