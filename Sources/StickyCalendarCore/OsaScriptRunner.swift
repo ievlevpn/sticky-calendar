@@ -41,14 +41,27 @@ public struct OsaScriptRunner: Sendable {
         let err = Task.detached { errors.fileHandleForReading.readDataToEndOfFile() }
         input.fileHandleForWriting.write(Data(source.utf8))
         try? input.fileHandleForWriting.close()
-        let timedOut = await withTaskGroup(of: Bool.self) { group in
-            group.addTask { for await _ in exited {}; return false }
-            group.addTask { try? await Task.sleep(for: timeout); return true }
-            let first = await group.next() ?? false
-            group.cancelAll()
-            return first
+        enum Outcome { case exited, timedOut }
+        let outcome = await withTaskCancellationHandler {
+            await withTaskGroup(of: Outcome?.self) { group in
+                group.addTask { for await _ in exited { return .exited }; return nil }
+                group.addTask { try? await Task.sleep(for: timeout); return Task.isCancelled ? nil : .timedOut }
+                var first: Outcome?
+                while let next = await group.next() {
+                    if let next { first = next; break }
+                }
+                group.cancelAll()
+                return first
+            }
+        } onCancel: {
+            // Stops the process so the pipes close and nothing waits on it.
+            if process.isRunning { process.terminate() }
         }
-        if timedOut, process.isRunning {
+        if Task.isCancelled {
+            if process.isRunning { process.terminate() }
+            throw CancellationError()
+        }
+        if outcome == .timedOut, process.isRunning {
             process.terminate()
             throw Failure.timedOut
         }

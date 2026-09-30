@@ -177,7 +177,7 @@ public final class JXAThings: ThingsScripting {
     }
 
     /// Reads everything in bulk. Projects are to-dos too in Things' dictionary, so they're
-    /// left out of the open to-dos by id.
+    /// left out of the open to-dos by id, and so are those in the Trash.
     static let readScript = """
         function iso(d) { return d ? d.toISOString() : null; }
         function bulk(items) {
@@ -190,7 +190,9 @@ public final class JXAThings: ThingsScripting {
         }
         const projects = T.projects.whose({status: 'open'});
         const projectIDs = projects.id(), projectNames = projects.name();
-        const open = bulk(T.toDos.whose({status: 'open'})).filter(t => projectIDs.indexOf(t.id) < 0);
+        // Things keeps deleted to-dos in its Trash with status "open", so leave those out too.
+        const trashIDs = T.lists.byId('TMTrashListSource').toDos.id();
+        const open = bulk(T.toDos.whose({status: 'open'})).filter(t => projectIDs.indexOf(t.id) < 0 && trashIDs.indexOf(t.id) < 0);
         const done = bulk(T.lists.byId('TMLogbookListSource').toDos.whose({completionDate: {_greaterThan: new Date(args.since)}}));
         const lists = [];
         projectIDs.forEach((id, i) => lists.push({id: id, name: projectNames[i], kind: 'project', toDoIDs: T.projects.byId(id).toDos.id()}));

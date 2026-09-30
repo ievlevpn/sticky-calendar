@@ -24,6 +24,15 @@ struct OsaScriptRunnerTests {
         #expect(Date().timeIntervalSince(started) < 10)
     }
 
+    @Test func cancellingStopsTheScript() async {
+        let started = Date()
+        let task = Task { try await OsaScriptRunner(timeout: .seconds(30)).run("delay(30)") }
+        try? await Task.sleep(for: .milliseconds(300))
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(Date().timeIntervalSince(started) < 10)
+    }
+
     @Test func largeOutputDoesNotDeadlock() async throws {
         let out = try await OsaScriptRunner().run("'x'.repeat(300000)")
         #expect(out.count == 300000)
