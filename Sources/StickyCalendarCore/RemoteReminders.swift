@@ -1,13 +1,16 @@
 import Foundation
 import Security
 
-/// JSON over HTTPS with a bearer token, for the Todoist and TickTick sources.
+/// JSON over HTTPS with a bearer token, for the Todoist, TickTick and Microsoft To Do sources.
 struct RemoteClient: Sendable {
     let base: URL
     let token: String
     let session: URLSession
     /// "Todoist", "TickTick": for error messages.
     let service: String
+    /// Asked for the token before each request instead of `token` (Microsoft's expire hourly),
+    /// and once more with `renew` after a 401, the request then retried once.
+    var tokenProvider: (@MainActor @Sendable (_ renew: Bool) async throws -> String)? = nil
 
     enum Failure: Error { case unauthorized }
 
@@ -15,13 +18,24 @@ struct RemoteClient: Sendable {
         try await send("GET", path, query: query, body: nil)
     }
 
+    /// A page link the server handed back (Microsoft's `@odata.nextLink`).
+    func get(url: URL) async throws -> Any {
+        try await perform("GET", url: url, body: nil)
+    }
+
     @discardableResult
     func send(_ method: String, _ path: String, query: [URLQueryItem] = [], body: [String: Any]?) async throws -> Any {
         var parts = URLComponents(url: base.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         if !query.isEmpty { parts.queryItems = query }
-        var request = URLRequest(url: parts.url!)
+        return try await perform(method, url: parts.url!, body: body)
+    }
+
+    private func perform(_ method: String, url: URL, body: [String: Any]?,
+                         renewed: Bool = false, waited: Bool = false) async throws -> Any {
+        var request = URLRequest(url: url)
         request.httpMethod = method
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let bearer = try await tokenProvider?(renewed) ?? token
+        request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -33,8 +47,18 @@ struct RemoteClient: Sendable {
         } catch {
             throw ReminderSourceError("Couldn't reach \(service): \(error.localizedDescription)")
         }
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let http = response as? HTTPURLResponse
+        let status = http?.statusCode ?? 0
+        if status == 401, tokenProvider != nil, !renewed {
+            return try await perform(method, url: url, body: body, renewed: true, waited: waited)
+        }
         if status == 401 || status == 403 { throw Failure.unauthorized }
+        if status == 429, !waited {
+            let seconds = min(Double(http?.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 1, 30)
+            try await Task.sleep(for: .seconds(seconds))
+            return try await perform(method, url: url, body: body, renewed: renewed, waited: true)
+        }
+        if status == 404 { throw ReminderSourceError("That reminder no longer exists in \(service).") }
         guard (200..<300).contains(status) else {
             throw ReminderSourceError("\(service) couldn't do that (error \(status)).")
         }

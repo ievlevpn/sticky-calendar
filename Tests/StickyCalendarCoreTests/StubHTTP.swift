@@ -8,6 +8,7 @@ final class StubHTTP: URLProtocol, @unchecked Sendable {
         let path: String
         let query: [String: String]
         let body: [String: any Sendable]
+        let headers: [String: String]
     }
 
     typealias Handler = @Sendable (Call) -> (status: Int, json: Any)
@@ -47,11 +48,18 @@ final class StubHTTP: URLProtocol, @unchecked Sendable {
             stream.close()
             bodyData = data
         }
-        let body = bodyData.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+        var body = bodyData.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+        if body.isEmpty, let bodyData, let text = String(data: bodyData, encoding: .utf8), text.contains("=") {
+            // A form (OAuth's token endpoint).
+            var form = URLComponents()
+            form.percentEncodedQuery = text
+            for item in form.queryItems ?? [] { body[item.name] = item.value ?? "" }
+        }
         let call = Call(
             method: request.httpMethod ?? "GET", path: url.path,
             query: Dictionary(uniqueKeysWithValues: (parts?.queryItems ?? []).map { ($0.name, $0.value ?? "") }),
-            body: body.mapValues { "\($0)" }
+            body: body.mapValues { "\($0)" },
+            headers: request.allHTTPHeaderFields ?? [:]
         )
         let handler = Self.lock.withLock { () -> Handler? in
             Self.calls[id, default: []].append(call)
@@ -59,7 +67,9 @@ final class StubHTTP: URLProtocol, @unchecked Sendable {
         }
         let (status, json) = handler?(call) ?? (404, [:])
         let data = (try? JSONSerialization.data(withJSONObject: json)) ?? Data()
-        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+        var headers = ["Content-Type": "application/json"]
+        if status == 429 { headers["Retry-After"] = "0" }
+        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: data)
         client?.urlProtocolDidFinishLoading(self)
