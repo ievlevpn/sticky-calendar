@@ -47,6 +47,7 @@ struct ReminderSourceChooser: View {
         .onAppear {
             if let initial { pick(initial) }
         }
+        .onDisappear(perform: cancelSignIn)
     }
 
     // MARK: Parts
@@ -73,7 +74,7 @@ struct ReminderSourceChooser: View {
 
     @ViewBuilder
     private func setup(for provider: ReminderProvider) -> some View {
-        Button { choice = nil; error = nil } label: {
+        Button { cancelSignIn(); choice = nil; error = nil } label: {
             Label("All sources", systemImage: "chevron.left").font(.system(size: 11))
         }
         .buttonStyle(.borderless)
@@ -136,7 +137,7 @@ struct ReminderSourceChooser: View {
                     ProgressView().controlSize(.small)
                     Text("Finish signing in in your browser…").font(.system(size: 11))
                     Spacer()
-                    Button("Cancel") { signInCancelled = true; signIn?.cancel() }
+                    Button("Cancel", action: cancelSignIn)
                 }
             }
         }
@@ -233,6 +234,13 @@ struct ReminderSourceChooser: View {
         }
     }
 
+    /// Stops a sign-in in progress: Cancel, Back and leaving the chooser all end up here.
+    private func cancelSignIn() {
+        guard let signIn else { return }
+        signInCancelled = true
+        signIn.cancel()
+    }
+
     /// Browser sign-in: listen locally, open Microsoft's page, trade the code for tokens,
     /// try one fetch, then save.
     private func signInToMicrosoft() {
@@ -250,8 +258,14 @@ struct ReminderSourceChooser: View {
                 let code = try await redirect.code()
                 let auth = MicrosoftSession(refreshToken: nil)
                 try await auth.exchange(code: code, verifier: pkce.verifier, redirect: uri)
+                // The exchange saved a refresh token; until the source is kept, take it back on any way out.
+                var keep = false
+                defer { if !keep { auth.signOut() } }
+                if signInCancelled { return }
                 let candidate = MicrosoftToDoSource(auth: auth)
                 _ = try await candidate.reminders(completedSince: Date())
+                if signInCancelled { return }
+                keep = true
                 settings.setProvider(.microsoftToDo)
                 store.use(candidate)
                 NSApp.activate()
