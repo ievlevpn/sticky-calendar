@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var notesPanel: NotesPanel?
     private let updateChecker = UpdateChecker(currentVersion: AppVersion.short)
     private var updateTimer: Timer?
+    private var noteFolderWatch: Timer?
     private lazy var hotKey = GlobalHotKey { [weak self] in self?.toggleFromHotKey() }
     private lazy var remindersHotKey = GlobalHotKey { [weak self] in self?.toggleRemindersFromHotKey() }
     private var panel: StickyPanel?
@@ -54,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKey.apply(settings.globalHotKey.carbonKey)
         remindersHotKey.apply(reminderSettings.hotKey.carbonKey)
         scheduleReminderRefresh()
+        watchNoteFolder()
         applyScreenCapturePrivacy()
 
         observeClock()
@@ -226,6 +228,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated {
                 guard let self, self.reminderSettings.isVisible else { return }
                 Task { await self.reminderStore.reload() }
+            }
+        }
+    }
+
+    /// With notes kept in a folder, picks up edits made to the open note elsewhere (e.g. in
+    /// Obsidian). Our own edits are saved as they're typed, so this changes nothing otherwise.
+    private func watchNoteFolder() {
+        noteFolderWatch = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.notepad.isVisible else { return }
+                self.notepad.reloadFromFolder()
             }
         }
     }

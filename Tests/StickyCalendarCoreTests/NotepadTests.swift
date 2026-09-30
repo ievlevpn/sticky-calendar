@@ -12,6 +12,59 @@ struct NotepadTests {
         defaults.removePersistentDomain(forName: name)
     }
 
+    private func tempFolder() -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("NotepadTests-\(UUID().uuidString)")
+        try! FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func read(_ url: URL) -> String? { try? String(contentsOf: url, encoding: .utf8) }
+
+    @Test func aFolderKeepsEachDaysNoteAsAMarkdownFile() {
+        let folder = tempFolder()
+        let n = Notepad(defaults: defaults, calendar: utc, day: at(9))
+        n.setFolder(folder.path)
+        n.setText("# Monday")
+        #expect(read(folder.appendingPathComponent("2026-09-28.md")) == "# Monday")
+        n.setDay(at(9, day: 29))
+        #expect(n.text.isEmpty)
+        n.setText("")                                   // an empty note makes no file
+        #expect(read(folder.appendingPathComponent("2026-09-29.md")) == nil)
+        n.setPerDay(false)
+        n.setText("one note")
+        #expect(read(folder.appendingPathComponent(Notepad.singleNoteFileName)) == "one note")
+        // Read back by a fresh instance.
+        let reloaded = Notepad(defaults: defaults, calendar: utc, day: at(9))
+        #expect(reloaded.folderPath == folder.path && reloaded.text == "one note")
+    }
+
+    @Test func choosingAFolderCopiesNotesInWithoutOverwriting() throws {
+        let folder = tempFolder()
+        try "already there".write(to: folder.appendingPathComponent("2026-09-28.md"), atomically: true, encoding: .utf8)
+        let n = Notepad(defaults: defaults, calendar: utc, day: at(9))
+        n.setText("in the app, 28th")
+        n.setDay(at(9, day: 27))
+        n.setText("in the app, 27th")
+        n.setFolder(folder.path)
+        #expect(read(folder.appendingPathComponent("2026-09-28.md")) == "already there")
+        #expect(read(folder.appendingPathComponent("2026-09-27.md")) == "in the app, 27th")
+        n.setDay(at(9))
+        #expect(n.text == "already there")
+    }
+
+    @Test func picksUpEditsMadeElsewhereAndBringsFilesBackIntoTheApp() throws {
+        let folder = tempFolder()
+        let n = Notepad(defaults: defaults, calendar: utc, day: at(9))
+        n.setFolder(folder.path)
+        n.setText("mine")
+        try "edited in Obsidian".write(to: folder.appendingPathComponent("2026-09-28.md"), atomically: true, encoding: .utf8)
+        n.reloadFromFolder()
+        #expect(n.text == "edited in Obsidian")
+        n.setFolder(nil)
+        #expect(n.text == "edited in Obsidian")
+        #expect(read(folder.appendingPathComponent("2026-09-28.md")) == "edited in Obsidian") // files stay
+    }
+
     @Test func startsHiddenAndEmpty() {
         let n = Notepad(defaults: defaults)
         #expect(!n.isVisible)
