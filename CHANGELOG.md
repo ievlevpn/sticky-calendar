@@ -2,6 +2,14 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.14.0 — 2026-09-30
+
+### Added
+- **Select several events**: ⌘- or ⇧-click adds an event to the selection (or takes it out). Drag any of them to move them all together, keeping their spacing; ⌫ deletes them after asking. One ⌘Z undoes either. With repeating events among them, you're asked once whether to change just these or future ones too.
+
+### Fixed
+- The **••• menu** opened when the pointer merely passed over the header near it, getting in the way of dragging the window and of the **Now** / **Today** chip. It now opens only from the ••• button.
+
 ## 0.13.0 — 2026-09-29
 
 ### Added

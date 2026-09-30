@@ -19,7 +19,8 @@ ruler marks the current time. Click the date for a month picker, or scroll over 
 through days; a red "Today" chip takes you back (or "Now", when the current time is scrolled
 away). Hover the ••• button and the other buttons unfurl (click ••• to keep them open) — the
 reminders and note stickies have the same menu.
-Drag to create, move and resize events; double-click to edit; ⌫ to delete; ⌘Z to undo;
+Drag to create, move and resize events; ⌘- or ⇧-click to select several and move or delete
+them together; double-click to edit; ⌫ to delete; ⌘Z to undo;
 ⌃S (or the pin button) toggles whether the sticky stays on top of other windows;
 ⌘O (or the calendar button) opens Calendar, optionally on the day you're viewing;
 ⌘R (or the ↻ button) refreshes; ⌘, (or the gear button) opens Settings; ⌘= / ⌘- zoom the timeline and note, ⌘0 resets
