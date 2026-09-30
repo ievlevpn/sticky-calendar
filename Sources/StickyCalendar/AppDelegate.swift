@@ -231,7 +231,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.reminderTicks += 1
                 guard self.reminderSettings.isVisible, !self.reminderStore.isLoading else { return }
-                guard self.reminderSettings.provider == .things || self.reminderTicks % 10 == 0 else { return }
+                if self.reminderSettings.provider == .things {
+                    // A quit Things stays quit: only ⌘R starts it.
+                    guard !NSRunningApplication.runningApplications(withBundleIdentifier: JXAThings.bundleID).isEmpty else { return }
+                } else {
+                    guard self.reminderTicks % 10 == 0 else { return }
+                }
                 Task { await self.reminderStore.reload() }
             }
         }

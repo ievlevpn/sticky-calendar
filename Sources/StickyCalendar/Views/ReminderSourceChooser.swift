@@ -16,6 +16,8 @@ struct ReminderSourceChooser: View {
     @State private var vaultPath = ""
     @State private var inboxPath = "Inbox.md"
     @State private var isConnecting = false
+    /// The last connection test to Things was refused by macOS.
+    @State private var isThingsDenied = false
     @State private var error: String?
 
     var body: some View {
@@ -106,7 +108,7 @@ struct ReminderSourceChooser: View {
                 TextField("Inbox.md", text: $inboxPath).textFieldStyle(.roundedBorder)
             }
         case .things:
-            if store.access == .denied {
+            if store.access == .denied || isThingsDenied {
                 Text("Sticky Calendar isn't allowed to control Things. Allow it in System Settings → Privacy & Security → Automation, under Sticky Calendar.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -136,6 +138,7 @@ struct ReminderSourceChooser: View {
 
     private func pick(_ provider: ReminderProvider) {
         error = nil
+        isThingsDenied = false
         choice = provider
         switch provider {
         case .todoist: token = ReminderTokens.token(for: TodoistSource.tokenAccount) ?? ""
@@ -179,6 +182,7 @@ struct ReminderSourceChooser: View {
         }
         isConnecting = true
         error = nil
+        isThingsDenied = false
         Task {
             defer { isConnecting = false }
             if provider == .appleReminders {
@@ -192,6 +196,7 @@ struct ReminderSourceChooser: View {
                     _ = try await candidate.reminders(completedSince: Date())
                 } catch {
                     self.error = error.localizedDescription
+                    isThingsDenied = provider == .things && candidate.currentAccess() == .denied
                     return
                 }
             }

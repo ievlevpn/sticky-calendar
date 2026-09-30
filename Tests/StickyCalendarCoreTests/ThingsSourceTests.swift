@@ -60,6 +60,12 @@ struct ThingsSourceTests {
         #expect(!source.supportsTime && !source.supportsPriority)
     }
 
+    @Test func cancelledToDosStayOut() async throws {
+        things.snapshot.done.append(.init(id: "x", name: "Dropped", status: "canceled", when: at(0), completed: at(10)))
+        let items = try await source.reminders(completedSince: at(0))
+        #expect(!items.contains { $0.id == "x" })
+    }
+
     @Test func writesOnlyWhatChanged() async throws {
         var item = try await source.reminders(completedSince: at(0)).first { $0.id == "b" }!
         item.title = "Quarterly report"

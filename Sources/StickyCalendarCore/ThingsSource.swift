@@ -53,7 +53,7 @@ public final class ThingsSource: ReminderSource {
         let today = calendar.startOfDay(for: now())
         var items = snapshot.open.map { item($0, listID: listOf[$0.id] ?? Self.otherID, today: today) }
         let open = Set(items.map(\.id))
-        items += snapshot.done.filter { !open.contains($0.id) }
+        items += snapshot.done.filter { $0.status == "completed" && !open.contains($0.id) }
             .map { item($0, listID: listOf[$0.id] ?? Self.otherID, today: today) }
         var infos = [ReminderListInfo(id: Self.inboxID, title: "Inbox", color: RGBA(hex: 0x3A8DDE))]
         kinds = [:]
