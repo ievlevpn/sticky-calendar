@@ -10,6 +10,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let updateItem = NSMenuItem(title: "", action: #selector(getUpdate), keyEquivalent: "")
     private let isPanelVisible: () -> Bool
     private let areRemindersOpen: () -> Bool
+    /// Reminders have their own window (not a tab of the sticky), so they get a Show/Hide item.
+    private let remindersHaveOwnWindow: () -> Bool
     private let onToggle: () -> Void
     private let onToggleReminders: () -> Void
     private let onSettings: () -> Void
@@ -19,6 +21,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     init(
         isPanelVisible: @escaping () -> Bool,
         areRemindersOpen: @escaping () -> Bool,
+        remindersHaveOwnWindow: @escaping () -> Bool,
         onToggle: @escaping () -> Void,
         onToggleReminders: @escaping () -> Void,
         onSettings: @escaping () -> Void,
@@ -27,6 +30,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     ) {
         self.isPanelVisible = isPanelVisible
         self.areRemindersOpen = areRemindersOpen
+        self.remindersHaveOwnWindow = remindersHaveOwnWindow
         self.onToggle = onToggle
         self.onToggleReminders = onToggleReminders
         self.onSettings = onSettings
@@ -63,6 +67,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         toggleItem.title = isPanelVisible() ? "Hide Sticky" : "Show Sticky"
         remindersItem.title = areRemindersOpen() ? "Hide Reminders" : "Show Reminders"
+        remindersItem.isHidden = !remindersHaveOwnWindow()
         if case .available(let info) = updateChecker.status {
             updateItem.title = "Update Available: v\(info.version)…"
             updateItem.isHidden = false

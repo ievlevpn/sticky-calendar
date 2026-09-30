@@ -31,9 +31,10 @@ public final class AppSettings {
     public private(set) var calendarJumpMode: CalendarJumpMode?
     /// Scales the timeline and the note (text and spacing together); the header stays put.
     public private(set) var zoom: Double
-    /// Collapsed to the header and the current or next event.
+    /// Collapsed: the calendar to the header and the current or next event, the Reminders
+    /// tab to one reminder at a time. Kept when switching between them.
     public private(set) var isCompact: Bool
-    /// The window's height before it was made compact, to restore.
+    /// The sticky's height before it was made compact (calendar or reminders), to restore.
     public private(set) var expandedHeight: Double?
     /// The system-wide shortcut that shows or hides the sticky.
     public private(set) var globalHotKey: GlobalHotKeyChoice
@@ -63,10 +64,12 @@ public final class AppSettings {
     public func setCompact(_ compact: Bool, expandedHeight height: Double? = nil) {
         isCompact = compact
         defaults.set(compact, forKey: Key.isCompact)
-        if let height {
-            expandedHeight = height
-            defaults.set(height, forKey: Key.expandedHeight)
-        }
+        if let height { setExpandedHeight(height) }
+    }
+
+    public func setExpandedHeight(_ height: Double) {
+        expandedHeight = height
+        defaults.set(height, forKey: Key.expandedHeight)
     }
 
     public func setGlobalHotKey(_ choice: GlobalHotKeyChoice) {

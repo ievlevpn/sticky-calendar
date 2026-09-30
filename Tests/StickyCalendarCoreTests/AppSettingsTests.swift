@@ -92,6 +92,8 @@ struct AppSettingsTests {
         reloaded.setCompact(false)
         #expect(!AppSettings(defaults: defaults).isCompact)
         #expect(AppSettings(defaults: defaults).expandedHeight == 640)
+        reloaded.setExpandedHeight(500)
+        #expect(!reloaded.isCompact && AppSettings(defaults: defaults).expandedHeight == 500)
     }
 
     @Test func globalHotKeyDefaultsToControlOptionSAndPersists() {

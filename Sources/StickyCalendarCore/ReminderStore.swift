@@ -159,6 +159,11 @@ public final class ReminderStore {
         }
     }
 
+    /// What compact mode flips through: the open reminders of the current mode, in order.
+    public var openItems: [ReminderItem] {
+        sections.flatMap(\.items).filter { !$0.isCompleted }
+    }
+
     /// Reminders in visible lists: incomplete ones, and completed ones when asked for or
     /// ticked just now.
     private var shownItems: [ReminderItem] {

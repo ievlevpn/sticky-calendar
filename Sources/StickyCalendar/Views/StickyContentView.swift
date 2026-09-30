@@ -2,7 +2,8 @@ import StickyCalendarCore
 import SwiftUI
 
 /// Root of the sticky window: header, all-day strip, timeline, optional note (or, compact,
-/// just what's on next), plus dialogs and error banner.
+/// just what's on next), or the Reminders tab (or, compact, one reminder at a time), plus
+/// dialogs and error banner.
 struct StickyContentView: View {
     let store: CalendarStore
     let settings: AppSettings
@@ -18,6 +19,8 @@ struct StickyContentView: View {
     let onChooseReminderPlacement: (ReminderPlacement) -> Void
     let onTogglePin: () -> Void
     let onToggleCompact: () -> Void
+    /// The compact reminders' height, which changes with what they show.
+    let onRemindersCompactHeight: (CGFloat) -> Void
     let onSettings: () -> Void
 
     @State private var contentHeight: CGFloat = 0
@@ -25,21 +28,24 @@ struct StickyContentView: View {
     private let reservedHeight: CGFloat = 32 + 140
 
     var body: some View {
-        VStack(spacing: 0) {
-            HeaderView(
-                store: store, settings: settings, reminderSettings: reminderSettings,
-                isNoteVisible: notepad.isVisible, onToggleNote: toggleNote, onToggleReminders: onToggleReminders,
-                onRefresh: refresh, isRefreshing: showsRemindersTab && reminderStore.isLoading,
-                onTogglePin: onTogglePin, onToggleCompact: onToggleCompact, onSettings: onSettings
-            )
-            .zIndex(1) // its menu's label hangs over the content below
-            if showsRemindersTab {
-                RemindersView(store: reminderStore, settings: reminderSettings, zoom: settings.zoom,
-                              onChoosePlacement: onChooseReminderPlacement)
-            } else if settings.isCompact, store.access == .granted {
-                UpNextRow(store: store, onExpand: onToggleCompact)
+        Group {
+            if showsRemindersTab, settings.isCompact {
+                RemindersCompactView(store: reminderStore, calendarStore: store, settings: reminderSettings,
+                                     opacity: settings.opacity, header: header, onExpand: onToggleCompact,
+                                     onHeightChange: onRemindersCompactHeight)
             } else {
-                fullContent
+                VStack(spacing: 0) {
+                    header
+                    if showsRemindersTab {
+                        RemindersView(store: reminderStore, settings: reminderSettings, zoom: settings.zoom,
+                                      onChoosePlacement: onChooseReminderPlacement)
+                    } else if settings.isCompact, store.access == .granted {
+                        UpNextRow(store: store, onExpand: onToggleCompact)
+                    } else {
+                        fullContent
+                    }
+                }
+                .background(VisualEffectBackground().opacity(settings.opacity))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -47,7 +53,6 @@ struct StickyContentView: View {
         // Per-day notes follow the day being viewed.
         .onAppear { notepad.setDay(store.day) }
         .onChange(of: store.day) { _, day in notepad.setDay(day) }
-        .background(VisualEffectBackground().opacity(settings.opacity))
         .overlay(alignment: .bottom) { ErrorBanner(store: store) }
         .confirmationDialog(
             deleteTitle,
@@ -100,6 +105,17 @@ struct StickyContentView: View {
         }
     }
 
+    private var header: some View {
+        HeaderView(
+            store: store, settings: settings, reminderSettings: reminderSettings,
+            compactReminderCount: reminderStore.openItems.count,
+            isNoteVisible: notepad.isVisible, onToggleNote: toggleNote, onToggleReminders: onToggleReminders,
+            onRefresh: refresh, isRefreshing: showsRemindersTab && reminderStore.isLoading,
+            onTogglePin: onTogglePin, onToggleCompact: onToggleCompact, onSettings: onSettings
+        )
+        .zIndex(1) // its menu's label hangs over the content below
+    }
+
     /// Everything below the header when not compact.
     @ViewBuilder
     private var fullContent: some View {
@@ -121,7 +137,7 @@ struct StickyContentView: View {
     }
 
     private var showsRemindersTab: Bool {
-        reminderSettings.placement == .tab && reminderSettings.isVisible && !settings.isCompact
+        reminderSettings.placement == .tab && reminderSettings.isVisible
     }
 
     private func refresh() {

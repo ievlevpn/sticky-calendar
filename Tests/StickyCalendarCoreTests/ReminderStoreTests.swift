@@ -24,6 +24,20 @@ struct ReminderStoreTests {
 
     private func titles(_ section: ReminderSection?) -> [String] { section?.items.map(\.title) ?? [] }
 
+    @Test func compactModeFlipsThroughOpenRemindersInOrder() async {
+        source.stored = [
+            reminder("1", "Renew passport", due: at(0, day: 26)),
+            reminder("2", "Buy milk", due: at(0)),
+            reminder("3", "Call the bank", due: at(10), timed: true),
+            reminder("4", "Send invoice", due: at(8), timed: true, done: true),
+        ]
+        settings.setShowsCompleted(true)
+        await store.reload()
+        #expect(store.openItems.map(\.title) == ["Renew passport", "Call the bank", "Buy milk"])
+        await store.toggle(store.openItems[0])
+        #expect(store.openItems.map(\.title) == ["Call the bank", "Buy milk"]) // ticked ones drop out
+    }
+
     @Test func todayShowsOverdueThenTodaysInOrder() async {
         source.stored = [
             reminder("1", "Renew passport", due: at(0, day: 26)),

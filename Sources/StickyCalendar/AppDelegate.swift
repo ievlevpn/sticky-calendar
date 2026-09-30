@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = StatusItemController(
             isPanelVisible: { [weak panel] in panel?.isVisible ?? false },
             areRemindersOpen: { [weak self] in self?.reminderSettings.isVisible ?? false },
+            remindersHaveOwnWindow: { [weak self] in self?.reminderSettings.placement == .window },
             onToggle: { [weak self] in self?.togglePanel() },
             onToggleReminders: { [weak self] in self?.toggleReminders() },
             onSettings: { [weak self] in self?.showSettings() },
@@ -154,7 +155,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .window:
             if reminderSettings.isVisible { hideRemindersWindow() } else { showRemindersWindow() }
         case .tab:
-            if settings.isCompact { panel?.toggleCompact() }
             reminderSettings.setVisible(!reminderSettings.isVisible)
             panel?.orderFrontRegardless()
         }
@@ -177,7 +177,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if showing {
                 reminderSettings.setVisible(false)
             } else {
-                if settings.isCompact { panel.toggleCompact() }
                 reminderSettings.setVisible(true)
                 panel.orderFrontRegardless()
                 panel.makeKey()

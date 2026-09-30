@@ -43,16 +43,20 @@ final class StickyPanel: FloatingPanel {
             onChooseReminderPlacement: onChooseReminderPlacement,
             onTogglePin: { [weak self] in self?.togglePinned() },
             onToggleCompact: { [weak self] in self?.toggleCompact() },
+            onRemindersCompactHeight: { [weak self] height in self?.setRemindersCompactHeight(height) },
             onSettings: onSettings
         ))
         widenOnceForTheFullHeader()
-        if settings.isCompact { applyCompactSize(animate: false) }
+        // Compact at launch: the height to restore was saved when it was made compact.
+        appliedCompact = isCompact
+        if isCompact { applyCompactSize(animate: false) }
+        followCompactChanges()
         installKeyMonitor()
     }
 
     /// Showing the Reminders tab instead of the timeline.
     private var showsReminders: Bool {
-        reminderSettings.placement == .tab && reminderSettings.isVisible && !settings.isCompact
+        reminderSettings.placement == .tab && reminderSettings.isVisible
     }
 
     func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? {
@@ -88,28 +92,64 @@ final class StickyPanel: FloatingPanel {
         setFrame(rect, display: false)
     }
     /// Header plus the up-next line.
-    private static let compactHeight: CGFloat = 32 + 40
+    private static let calendarCompactHeight: CGFloat = 32 + 40
+    /// Reported by the compact reminders, whose height depends on what they show.
+    private var remindersCompactHeight: CGFloat = 32 + 40
+    /// Whether the window is currently sized as compact.
+    private var appliedCompact = false
 
-    /// Collapses to the header and what's on next (remembering the height), or expands back.
+    private var isCompact: Bool { settings.isCompact }
+
+    private var compactHeight: CGFloat {
+        showsReminders ? remindersCompactHeight : Self.calendarCompactHeight
+    }
+
+    /// Collapses (the calendar to what's on next, reminders to one at a time), or expands
+    /// back. Switching between the calendar and the Reminders tab keeps it.
     func toggleCompact() {
-        if settings.isCompact {
-            settings.setCompact(false)
-            minSize = Self.minimumSize
-            maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
-            resize(toHeight: max(CGFloat(settings.expandedHeight ?? 520), Self.minimumSize.height), animate: true)
-        } else {
-            settings.setCompact(true, expandedHeight: Double(frame.height))
-            store.goToToday()
-            applyCompactSize(animate: true)
+        settings.setCompact(!settings.isCompact)
+    }
+
+    /// Resizes on toggling compact, and on switching tabs while compact (the two differ in height).
+    private func followCompactChanges() {
+        withObservationTracking {
+            _ = (isCompact, showsReminders)
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.applyCompactState()
+                self?.followCompactChanges()
+            }
         }
     }
 
-    private func applyCompactSize(animate: Bool) {
-        minSize = NSSize(width: Self.minimumSize.width, height: Self.compactHeight)
-        maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: Self.compactHeight)
-        resize(toHeight: Self.compactHeight, animate: animate)
+    private func applyCompactState() {
+        let compact = isCompact
+        if compact && !appliedCompact {
+            settings.setExpandedHeight(Double(frame.height)) // to restore
+            store.goToToday()
+        }
+        if compact {
+            applyCompactSize(animate: true)
+        } else if appliedCompact {
+            minSize = Self.minimumSize
+            maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
+            resize(toHeight: max(CGFloat(settings.expandedHeight ?? 520), Self.minimumSize.height), animate: true)
+        }
+        appliedCompact = compact
     }
 
+    private func setRemindersCompactHeight(_ height: CGFloat) {
+        guard height != remindersCompactHeight else { return }
+        remindersCompactHeight = height
+        if appliedCompact && showsReminders { applyCompactSize(animate: true) }
+    }
+
+    private func applyCompactSize(animate: Bool) {
+        let height = compactHeight
+        minSize = NSSize(width: Self.minimumSize.width, height: height)
+        maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: height)
+        resize(toHeight: height, animate: animate)
+    }
 
     /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning,
     /// ⌘O opens Calendar, ←/→ change day, ↑/↓ move the selection (or scroll), Page Up/Down

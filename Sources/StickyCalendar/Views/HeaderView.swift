@@ -5,11 +5,13 @@ import SwiftUI
 /// The sticky's header. The date is the control (design 2b): click it for a month picker,
 /// scroll over it to step through days, and a "Today" chip brings you back. The actions sit
 /// behind a ••• button that unfurls on hover (design 1a). In the Reminders tab, "Reminders"
-/// replaces the date.
+/// replaces the date; compact, a chip with the mode and how many are open (design 3c).
 struct HeaderView: View {
     let store: CalendarStore
     let settings: AppSettings
     let reminderSettings: ReminderSettings
+    /// Open reminders, for the compact Reminders tab's chip.
+    let compactReminderCount: Int
     let isNoteVisible: Bool
     let onToggleNote: () -> Void
     let onToggleReminders: () -> Void
@@ -27,6 +29,7 @@ struct HeaderView: View {
     /// The reminders window is open, or the Reminders tab is showing.
     private var isRemindersOpen: Bool { reminderSettings.isVisible }
     private var showsRemindersTab: Bool { reminderSettings.placement == .tab && isRemindersOpen }
+    private var isCompact: Bool { settings.isCompact }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -34,7 +37,7 @@ struct HeaderView: View {
             Spacer(minLength: 0)
             UnfurlMenu(items: items, availableWidth: width, isOpen: $isMenuOpen)
         }
-        .padding(.leading, showsRemindersTab ? 12 : 6)
+        .padding(.leading, showsRemindersTab && !isCompact ? 12 : 6)
         .padding(.trailing, 12)
         .frame(height: 32)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
@@ -50,7 +53,9 @@ struct HeaderView: View {
 
     @ViewBuilder
     private var leading: some View {
-        if showsRemindersTab {
+        if showsRemindersTab && isCompact {
+            remindersChip
+        } else if showsRemindersTab {
             Text("Reminders").font(.system(size: 13, weight: .semibold)).lineLimit(1)
         } else {
             HStack(spacing: 6) {
@@ -60,6 +65,32 @@ struct HeaderView: View {
                 }
             }
         }
+    }
+
+    /// "Today 3": what the compact reminders flip through. Click to switch Today and Lists.
+    private var remindersChip: some View {
+        let isToday = reminderSettings.mode == .today
+        return Button { reminderSettings.setMode(isToday ? .lists : .today) } label: {
+            HStack(spacing: 4) {
+                Text(isToday ? "Today" : "Lists").font(.system(size: 13, weight: .semibold))
+                if compactReminderCount > 0 {
+                    Text("\(compactReminderCount)")
+                        .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 6)
+            .frame(height: 22)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.primary.opacity(0.1)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isToday ? "Showing today's reminders. Click for all lists." : "Showing all lists. Click for today's.")
     }
 
     /// The date as a button: click for the month picker, scroll to step a day at a time.
@@ -133,7 +164,7 @@ struct HeaderView: View {
                 action: onToggleReminders
             ),
         ]
-        if !settings.isCompact && !showsRemindersTab {
+        if !isCompact && !showsRemindersTab {
             items.append(UnfurlItem(id: "note", symbol: isNoteVisible ? "note.text" : "note", isActive: isNoteVisible,
                                     name: isNoteVisible ? "Hide note" : "Show note", action: onToggleNote))
         }
@@ -146,8 +177,8 @@ struct HeaderView: View {
                 CalendarJump.perform(day: store.day, settings: settings, store: store)
             },
             UnfurlItem(id: "compact",
-                       symbol: settings.isCompact ? "rectangle.expand.vertical" : "rectangle.compress.vertical",
-                       isActive: settings.isCompact, name: settings.isCompact ? "Expand" : "Compact", shortcut: "⌘M",
+                       symbol: isCompact ? "rectangle.expand.vertical" : "rectangle.compress.vertical",
+                       isActive: isCompact, name: isCompact ? "Expand" : "Compact", shortcut: "⌘M",
                        action: onToggleCompact),
             UnfurlItem(id: "settings", symbol: "gearshape", name: "Settings", shortcut: "⌘,", action: onSettings),
         ]
