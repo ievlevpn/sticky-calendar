@@ -164,7 +164,7 @@ struct HeaderView: View {
                 action: onToggleReminders
             ),
         ]
-        if !isCompact && !showsRemindersTab {
+        if !isCompact {
             items.append(UnfurlItem(id: "note", symbol: isNoteVisible ? "note.text" : "note", isActive: isNoteVisible,
                                     name: isNoteVisible ? "Hide note" : "Show note", action: onToggleNote))
         }

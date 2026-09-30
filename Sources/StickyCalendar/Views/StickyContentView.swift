@@ -24,7 +24,7 @@ struct StickyContentView: View {
     let onSettings: () -> Void
 
     @State private var contentHeight: CGFloat = 0
-    /// Header plus the least timeline worth keeping when the note grows.
+    /// Header plus the least timeline (or list of reminders) worth keeping when the note grows.
     private let reservedHeight: CGFloat = 32 + 140
 
     var body: some View {
@@ -39,6 +39,7 @@ struct StickyContentView: View {
                     if showsRemindersTab {
                         RemindersView(store: reminderStore, settings: reminderSettings, zoom: settings.zoom,
                                       onChoosePlacement: onChooseReminderPlacement)
+                        notePane
                     } else if settings.isCompact, store.access == .granted {
                         UpNextRow(store: store, onExpand: onToggleCompact)
                     } else {
@@ -130,6 +131,12 @@ struct StickyContentView: View {
         case .denied:
             AccessDeniedView()
         }
+        notePane
+    }
+
+    /// The note under the timeline or the reminders, when it's open there.
+    @ViewBuilder
+    private var notePane: some View {
         if notepad.placement == .pane, notepad.isVisible {
             NotePane(notepad: notepad, editor: noteEditor, zoom: settings.zoom, maxHeight: contentHeight - reservedHeight,
                      onDetach: { onMoveNote(.window) })
