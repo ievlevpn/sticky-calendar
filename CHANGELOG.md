@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.23.1 — 2026-10-01
+
+### Fixed
+- **Double-clicking the sticky's bar always toggles compact mode.** It used to work only near the bar's bottom edge: the window's hidden title bar took double-clicks in the rest of it. Dragging the bar still moves the sticky.
+
 ## 0.23.0 — 2026-10-01
 
 ### Added

@@ -41,8 +41,8 @@ struct HeaderView: View {
         .padding(.trailing, 12)
         .frame(height: 32)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        // Double-clicking the bar collapses or expands, like a title bar.
-        .background(Color.clear.contentShape(Rectangle()).onTapGesture(count: 2, perform: onToggleCompact))
+        // Double-clicking the bar collapses or expands, like a title bar; dragging it moves the window.
+        .background(TitleBarArea(onDoubleClick: onToggleCompact))
         // SwiftUI extends the timeline's scroll view up under the header (it insets the
         // content by the header height), so the header needs its own bar material.
         .background(.bar)
@@ -258,6 +258,38 @@ struct MonthPicker: View {
 
     private func shift(_ months: Int) {
         if let next = calendar.date(byAdding: .month, value: months, to: month) { month = next }
+    }
+}
+
+/// The header's empty part, standing in for the title bar it covers. The window's own
+/// (hidden) title bar would otherwise take clicks in its top 28 pt or so: there a
+/// double-click never reached the header, so it toggled compact mode only near the bar's
+/// bottom edge. This view takes them: a double-click calls `onDoubleClick`, a drag moves
+/// the window, even before the window has the keys.
+struct TitleBarArea: NSViewRepresentable {
+    let onDoubleClick: () -> Void
+
+    func makeNSView(context: Context) -> AreaView {
+        let view = AreaView()
+        view.onDoubleClick = onDoubleClick
+        return view
+    }
+
+    func updateNSView(_ view: AreaView, context: Context) { view.onDoubleClick = onDoubleClick }
+
+    final class AreaView: NSView {
+        var onDoubleClick: (() -> Void)?
+
+        override var mouseDownCanMoveWindow: Bool { false }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func mouseDown(with event: NSEvent) {
+            if event.clickCount == 2 {
+                onDoubleClick?()
+            } else {
+                window?.performDrag(with: event)
+            }
+        }
     }
 }
 
