@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: StatusItemController?
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
+    private var shortcutsWindow: NSWindow?
     private var observers: [NSObjectProtocol] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -35,7 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onToggleNoteWindow: { [weak self] in self?.toggleNoteWindow() },
             onMoveNote: { [weak self] in self?.moveNote(to: $0) },
             onChooseReminderPlacement: { [weak self] in self?.chooseReminderPlacement($0) },
-            onSettings: { [weak self] in self?.showSettings() }
+            onSettings: { [weak self] in self?.showSettings() },
+            onShortcuts: { [weak self] in self?.toggleShortcuts() }
         )
         self.panel = panel
         statusItem = StatusItemController(
@@ -46,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onToggleReminders: { [weak self] in self?.toggleReminders() },
             onSettings: { [weak self] in self?.showSettings() },
             onAbout: { [weak self] in self?.showAbout() },
+            onShortcuts: { [weak self] in self?.showShortcuts() },
             updateChecker: updateChecker
         )
         panel.orderFrontRegardless()
@@ -91,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// About) is marked not to be captured, or capturable again. Called when windows open.
     private func applyScreenCapturePrivacy() {
         let sharing: NSWindow.SharingType = settings.hidesFromScreenCapture ? .none : .readOnly
-        for window in [panel, remindersPanel, notesPanel, settingsWindow, aboutWindow] as [NSWindow?] {
+        for window in [panel, remindersPanel, notesPanel, settingsWindow, aboutWindow, shortcutsWindow] as [NSWindow?] {
             window?.sharingType = sharing
         }
     }
@@ -197,7 +200,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             remindersPanel = RemindersPanel(
                 store: reminderStore, settings: reminderSettings, appSettings: settings, beside: panel,
                 onSettings: { [weak self] in self?.showSettings() },
-                onClose: { [weak self] in self?.hideRemindersWindow() }
+                onClose: { [weak self] in self?.hideRemindersWindow() },
+                onShortcuts: { [weak self] in self?.toggleShortcuts() }
             )
         }
         reminderSettings.setVisible(true)
@@ -308,6 +312,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         aboutWindow?.makeKey()
     }
 
+    /// The cheat sheet, centred on the sticky's screen.
+    private func showShortcuts() {
+        let window = shortcutsWindow as? ShortcutsPanel
+            ?? ShortcutsPanel(content: ShortcutsView(settings: settings, reminderSettings: reminderSettings))
+        shortcutsWindow = window
+        applyScreenCapturePrivacy()
+        window.show(on: panel?.screen)
+    }
+
+    /// ? in a sticky: opens the cheat sheet, or closes it if it's open.
+    private func toggleShortcuts() {
+        if shortcutsWindow?.isVisible == true { shortcutsWindow?.close() } else { showShortcuts() }
+    }
+
     private func observeClock() {
         let onClockChange: @Sendable (Notification) -> Void = { [weak self] _ in
             MainActor.assumeIsolated {
@@ -379,5 +397,67 @@ final class UtilityPanel: NSPanel {
             return true
         }
         return super.performKeyEquivalent(with: event)
+    }
+}
+
+/// The shortcuts cheat sheet: no title bar, centred on the screen. It takes the keys while
+/// open; Esc or ? closes it and gives them back, and clicking anywhere else closes it too.
+final class ShortcutsPanel: NSPanel {
+    private weak var previousKey: NSWindow?
+
+    init(content: some View) {
+        super.init(contentRect: .zero, styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
+                   backing: .buffered, defer: false)
+        contentViewController = NSHostingController(rootView: content.ignoresSafeArea())
+        titlebarAppearsTransparent = true
+        titleVisibility = .hidden
+        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            standardWindowButton(button)?.isHidden = true
+        }
+        isReleasedWhenClosed = false
+        hidesOnDeactivate = false
+        isFloatingPanel = true
+        level = .floating
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+    }
+
+    override var canBecomeKey: Bool { true }
+
+    func show(on screen: NSScreen?) {
+        // Sized before it's first shown, so it centres on its real size.
+        if let size = contentViewController?.view.fittingSize { setContentSize(size) }
+        if let area = (screen ?? NSScreen.main)?.visibleFrame {
+            setFrameOrigin(NSPoint(x: area.midX - frame.width / 2, y: area.midY - frame.height / 2))
+        }
+        if let key = NSApp.keyWindow, key !== self { previousKey = key }
+        orderFrontRegardless()
+        makeKey()
+    }
+
+    /// Closed from the keyboard: the window that had the keys gets them back.
+    private func dismiss() {
+        let previous = previousKey
+        close()
+        previous?.makeKey()
+    }
+
+    private var isClosing = false
+
+    override func close() {
+        guard !isClosing else { return }
+        isClosing = true
+        super.close()
+        isClosing = false
+    }
+
+    override func resignKey() {
+        super.resignKey()
+        if isVisible { close() }
+    }
+
+    override func cancelOperation(_ sender: Any?) { dismiss() }
+
+    override func keyDown(with event: NSEvent) {
+        if event.charactersIgnoringModifiers == "?" { dismiss() } else { super.keyDown(with: event) }
     }
 }

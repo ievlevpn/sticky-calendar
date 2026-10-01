@@ -30,7 +30,7 @@ Events with a Zoom, Meet, Teams, Webex or Jitsi link get a camera button that jo
 ⌘M (or double-clicking the header) collapses the sticky to just what's on now or next —
 in the Reminders tab, to one reminder at a time (scroll over it to flip through, tick it
 off for the next, click it to edit, right-click for more), under the event on now;
-⌃⌥S shows or hides it from any app (Settings → Shortcuts). Optionally, the stickies fade
+⌃⌥S shows or hides it from any app (Settings → Shortcuts); ? lists every shortcut (also Keyboard Shortcuts in the menu bar icon's menu). Optionally, the stickies fade
 when left alone and come back when you point at them (Settings → General → Fade when idle).
 The checklist button shows your reminders from Apple Reminders, Todoist, TickTick, Things (beta), the
 tasks in an Obsidian vault, or Microsoft To Do (once the app's Microsoft registration is in place), either as a tab of this sticky (the default) or in their own

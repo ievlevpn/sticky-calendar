@@ -13,6 +13,7 @@ final class StickyPanel: FloatingPanel {
     private let reminderStore: ReminderStore
     private let reminderSettings: ReminderSettings
     private let onSettings: () -> Void
+    private let onShortcuts: () -> Void
     private var keyMonitor: Any?
     /// Events copied with ⌘C or ⌘X, and the pasteboard's change count when they were, so
     /// ⌘V pastes them only while nothing else has been copied since.
@@ -24,7 +25,7 @@ final class StickyPanel: FloatingPanel {
          onToggleReminders: @escaping () -> Void, onToggleNoteWindow: @escaping () -> Void,
          onMoveNote: @escaping (NotePlacement) -> Void,
          onChooseReminderPlacement: @escaping (ReminderPlacement) -> Void,
-         onSettings: @escaping () -> Void) {
+         onSettings: @escaping () -> Void, onShortcuts: @escaping () -> Void) {
         self.store = store
         self.settings = settings
         self.notepad = notepad
@@ -32,6 +33,7 @@ final class StickyPanel: FloatingPanel {
         self.reminderSettings = reminderSettings
         noteEditor = NoteEditorController(notepad: notepad)
         self.onSettings = onSettings
+        self.onShortcuts = onShortcuts
         super.init(autosaveName: "StickyPanel", size: NSSize(width: Self.defaultWidth, height: 560),
                    minSize: Self.minimumSize, isPinned: { settings.isPinned })
         setContent(StickyContentView(
@@ -174,7 +176,7 @@ final class StickyPanel: FloatingPanel {
     /// ⌘C / ⌘X / ⌘V copy, cut and paste the selected events,
     /// ⌫ deletes the selected event, ⌘Z / ⇧⌘Z undo and redo, ⌃S toggles pinning,
     /// ⌘O opens Calendar, ←/→ change day, ↑/↓ move the selection (or scroll), Page Up/Down
-    /// scroll, Return edits the selection, Esc deselects —
+    /// scroll, Return edits the selection, Esc deselects, ? lists the shortcuts —
     /// unless a text field is editing. ⌘, opens Settings, ⌘R refreshes, ⌘M toggles compact mode and
     /// ⌘= / ⌘- / ⌘0 zoom, even from the note.
     private func installKeyMonitor() {
@@ -220,6 +222,10 @@ final class StickyPanel: FloatingPanel {
             break
         }
         guard !(firstResponder is NSTextView) else { return false }
+        if key == "?", flags.isSubset(of: [.shift]) {
+            onShortcuts()
+            return true
+        }
         // The Reminders tab has its own undo; the timeline's keys don't apply to it.
         if showsReminders {
             switch (flags, key) {

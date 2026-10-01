@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.23.0 — 2026-10-01
+
+### Added
+- **Keyboard shortcuts cheat sheet**: press ? in the calendar or reminders sticky (or choose Keyboard Shortcuts in the menu bar icon's menu) to see every shortcut, including the ones that work from any app as set in Settings. It opens in the middle of the screen; Esc, ? or a click elsewhere closes it.
+
 ## 0.22.2 — 2026-09-30
 
 ### Fixed

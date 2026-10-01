@@ -11,15 +11,17 @@ final class RemindersPanel: FloatingPanel {
     private let appSettings: AppSettings
     private let onSettings: () -> Void
     private let onClose: () -> Void
+    private let onShortcuts: () -> Void
     private var keyMonitor: Any?
 
     init(store: ReminderStore, settings: ReminderSettings, appSettings: AppSettings, beside neighbour: NSWindow?,
-         onSettings: @escaping () -> Void, onClose: @escaping () -> Void) {
+         onSettings: @escaping () -> Void, onClose: @escaping () -> Void, onShortcuts: @escaping () -> Void) {
         self.store = store
         self.settings = settings
         self.appSettings = appSettings
         self.onSettings = onSettings
         self.onClose = onClose
+        self.onShortcuts = onShortcuts
         super.init(autosaveName: "RemindersPanel", size: NSSize(width: 260, height: 420),
                    minSize: NSSize(width: 200, height: 200), isPinned: { settings.isPinned })
         setContent(RemindersWindowContent(
@@ -51,7 +53,7 @@ final class RemindersPanel: FloatingPanel {
     }
 
     /// ⌘Z / ⇧⌘Z undo and redo (unless a text field is editing), ⌃S pins, ⌘W hides, ⌘R refreshes, ⌘F searches,
-    /// ⌘O opens the reminders' own app,
+    /// ⌘O opens the reminders' own app, ? lists the shortcuts,
     /// ⌘, opens Settings, ⌘= / ⌘- / ⌘0 zoom.
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -79,6 +81,8 @@ final class RemindersPanel: FloatingPanel {
         case ([.control], "s"): togglePinned()
         case ([.command], "z") where !(firstResponder is NSTextView): store.undoManager.undo()
         case ([.command, .shift], "z") where !(firstResponder is NSTextView): store.undoManager.redo()
+        case ([], "?") where !(firstResponder is NSTextView), ([.shift], "?") where !(firstResponder is NSTextView):
+            onShortcuts()
         default: return false
         }
         return true

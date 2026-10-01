@@ -16,6 +16,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let onToggleReminders: () -> Void
     private let onSettings: () -> Void
     private let onAbout: () -> Void
+    private let onShortcuts: () -> Void
     private let updateChecker: UpdateChecker
 
     init(
@@ -26,6 +27,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         onToggleReminders: @escaping () -> Void,
         onSettings: @escaping () -> Void,
         onAbout: @escaping () -> Void,
+        onShortcuts: @escaping () -> Void,
         updateChecker: UpdateChecker
     ) {
         self.isPanelVisible = isPanelVisible
@@ -35,6 +37,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.onToggleReminders = onToggleReminders
         self.onSettings = onSettings
         self.onAbout = onAbout
+        self.onShortcuts = onShortcuts
         self.updateChecker = updateChecker
         super.init()
 
@@ -56,6 +59,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
+        let shortcutsItem = NSMenuItem(title: "Keyboard Shortcuts", action: #selector(openShortcuts), keyEquivalent: "")
+        shortcutsItem.target = self
+        menu.addItem(shortcutsItem)
         let checkItem = NSMenuItem(title: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
         checkItem.target = self
         menu.addItem(checkItem)
@@ -80,6 +86,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func toggleReminders() { onToggleReminders() }
     @objc private func openSettings() { onSettings() }
     @objc private func openAbout() { onAbout() }
+    @objc private func openShortcuts() { onShortcuts() }
     @objc private func checkForUpdates() { UpdateActions.checkFromMenu(updateChecker) }
 
     @objc private func getUpdate() {
