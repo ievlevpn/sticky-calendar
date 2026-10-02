@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.24.2 — 2026-10-02
+
+### Fixed
+- **Double-clicking the right half of the sticky's bar toggles compact mode too.** In 0.24.1 it still did nothing there in the released app.
+
 ## 0.24.1 — 2026-10-02
 
 ### Fixed
