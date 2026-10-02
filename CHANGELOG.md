@@ -2,6 +2,14 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.24.0 — 2026-10-02
+
+### Added
+- **A new version is announced in the sticky**: a strip under the bar says which version is available, with Update (the release page, or the Homebrew command copied) and a ✕ that hides it until the next version.
+
+### Fixed
+- **A newer version is remembered across relaunches.** Update checks run once a day, so after a relaunch the menu's Update Available item could be missing until the next check.
+
 ## 0.23.1 — 2026-10-01
 
 ### Fixed

@@ -123,6 +123,9 @@ public final class UpdateChecker {
         static let automaticChecks = "automaticUpdateChecks"
         static let lastCheck = "lastUpdateCheck"
         static let lastAttempt = "lastUpdateAttempt"
+        static let dismissedVersion = "dismissedUpdateVersion"
+        static let latestVersion = "latestReleaseVersion"
+        static let latestPage = "latestReleasePage"
     }
 
     public private(set) var status: UpdateStatus = .unknown
@@ -133,6 +136,8 @@ public final class UpdateChecker {
     @ObservationIgnored private var lastAttempt: Date?
     /// Whether this session's most recent check failed (as opposed to not having run).
     public private(set) var lastCheckFailed = false
+    /// The release whose notice in the sticky was closed; a later one is announced again.
+    public private(set) var dismissedVersion: String?
     public let currentVersion: String
 
     @ObservationIgnored private let fetcher: ReleaseFetcher
@@ -152,6 +157,26 @@ public final class UpdateChecker {
         automaticChecksEnabled = defaults.object(forKey: Key.automaticChecks) as? Bool ?? true
         lastCheck = defaults.object(forKey: Key.lastCheck) as? Date
         lastAttempt = defaults.object(forKey: Key.lastAttempt) as? Date
+        dismissedVersion = defaults.string(forKey: Key.dismissedVersion)
+        // Checks run daily, so a relaunch knows of a newer release from the last check.
+        if let current = SemanticVersion(currentVersion), !current.isPrerelease,
+           let latest = defaults.string(forKey: Key.latestVersion).flatMap(SemanticVersion.init),
+           let page = defaults.url(forKey: Key.latestPage), current < latest {
+            status = .available(ReleaseInfo(version: latest, pageURL: page))
+        }
+    }
+
+    /// The newer release for the sticky to mention, unless its notice was closed.
+    public var announcedRelease: ReleaseInfo? {
+        guard case .available(let info) = status, info.version.description != dismissedVersion else { return nil }
+        return info
+    }
+
+    /// Closes the sticky's notice for this release.
+    public func dismissAnnouncement() {
+        guard let info = announcedRelease else { return }
+        dismissedVersion = info.version.description
+        defaults.set(dismissedVersion, forKey: Key.dismissedVersion)
     }
 
     /// Local builds (`0.0.0-dev`, or anything unparseable) never report updates.
@@ -203,6 +228,8 @@ public final class UpdateChecker {
         defaults.set(lastCheck, forKey: Key.lastCheck)
         lastCheckFailed = false
         status = !latest.version.isPrerelease && current < latest.version ? .available(latest) : .upToDate
+        defaults.set(latest.version.description, forKey: Key.latestVersion)
+        defaults.set(latest.pageURL, forKey: Key.latestPage)
         return status
     }
 }

@@ -25,7 +25,7 @@ final class StickyPanel: FloatingPanel {
          onToggleReminders: @escaping () -> Void, onToggleNoteWindow: @escaping () -> Void,
          onMoveNote: @escaping (NotePlacement) -> Void,
          onChooseReminderPlacement: @escaping (ReminderPlacement) -> Void,
-         onSettings: @escaping () -> Void, onShortcuts: @escaping () -> Void) {
+         onSettings: @escaping () -> Void, onShortcuts: @escaping () -> Void, updateChecker: UpdateChecker) {
         self.store = store
         self.settings = settings
         self.notepad = notepad
@@ -50,7 +50,8 @@ final class StickyPanel: FloatingPanel {
             onTogglePin: { [weak self] in self?.togglePinned() },
             onToggleCompact: { [weak self] in self?.toggleCompact() },
             onRemindersCompactHeight: { [weak self] height in self?.setRemindersCompactHeight(height) },
-            onSettings: onSettings
+            onSettings: onSettings,
+            updateChecker: updateChecker
         ))
         widenOnceForTheFullHeader()
         // Compact at launch: the height to restore was saved when it was made compact.

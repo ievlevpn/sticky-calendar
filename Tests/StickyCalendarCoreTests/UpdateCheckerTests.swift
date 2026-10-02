@@ -98,6 +98,30 @@ struct UpdateCheckerTests {
         #expect(c.status == status)
     }
 
+    @Test func aClosedNoticeStaysClosedUntilANewerRelease() async {
+        let c = checker("1.2.0", FakeFetcher(tag: "v1.3.0"), now: { clock })
+        #expect(c.announcedRelease == nil)              // not checked yet
+        await c.checkNow()
+        #expect(c.announcedRelease?.version.description == "1.3.0")
+        c.dismissAnnouncement()
+        #expect(c.announcedRelease == nil)
+        // Remembered across launches.
+        let relaunched = checker("1.2.0", FakeFetcher(tag: "v1.3.0"), now: { clock })
+        await relaunched.checkNow()
+        #expect(relaunched.announcedRelease == nil)
+        let later = checker("1.2.0", FakeFetcher(tag: "v1.4.0"), now: { clock })
+        await later.checkNow()
+        #expect(later.announcedRelease?.version.description == "1.4.0")
+    }
+
+    @Test func aRelaunchRemembersTheNewerRelease() async {
+        await checker("1.2.0", FakeFetcher(tag: "v1.3.0"), now: { clock }).checkNow()
+        let relaunched = checker("1.2.0", FakeFetcher(status: 500), now: { clock })
+        #expect(relaunched.announcedRelease?.version.description == "1.3.0")
+        // Once updated to it, nothing to offer.
+        #expect(checker("1.3.0", FakeFetcher(status: 500), now: { clock }).status == .unknown)
+    }
+
     @Test func sameOrOlderIsUpToDate() async {
         #expect(await checker("1.3.0", FakeFetcher(tag: "v1.3.0"), now: { clock }).checkNow() == .upToDate)
         #expect(await checker("1.4.0", FakeFetcher(tag: "v1.3.0"), now: { clock }).checkNow() == .upToDate)

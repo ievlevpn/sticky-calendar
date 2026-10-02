@@ -22,6 +22,7 @@ struct StickyContentView: View {
     /// The compact reminders' height, which changes with what they show.
     let onRemindersCompactHeight: (CGFloat) -> Void
     let onSettings: () -> Void
+    let updateChecker: UpdateChecker
 
     @State private var contentHeight: CGFloat = 0
     /// Header plus the least timeline (or list of reminders) worth keeping when the note grows.
@@ -36,6 +37,7 @@ struct StickyContentView: View {
             } else {
                 VStack(spacing: 0) {
                     header
+                    if !settings.isCompact { UpdateBanner(updateChecker: updateChecker) }
                     if showsRemindersTab {
                         RemindersView(store: reminderStore, settings: reminderSettings, zoom: settings.zoom,
                                       onChoosePlacement: onChooseReminderPlacement)

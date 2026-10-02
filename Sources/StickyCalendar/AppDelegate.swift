@@ -37,7 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onMoveNote: { [weak self] in self?.moveNote(to: $0) },
             onChooseReminderPlacement: { [weak self] in self?.chooseReminderPlacement($0) },
             onSettings: { [weak self] in self?.showSettings() },
-            onShortcuts: { [weak self] in self?.toggleShortcuts() }
+            onShortcuts: { [weak self] in self?.toggleShortcuts() },
+            updateChecker: updateChecker
         )
         self.panel = panel
         statusItem = StatusItemController(
