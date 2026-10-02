@@ -53,6 +53,7 @@ final class StickyPanel: FloatingPanel {
             onSettings: onSettings,
             updateChecker: updateChecker
         ))
+        onBarDoubleClick = { [weak self] in self?.toggleCompact() }
         widenOnceForTheFullHeader()
         // Compact at launch: the height to restore was saved when it was made compact.
         appliedCompact = isCompact

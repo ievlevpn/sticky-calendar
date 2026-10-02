@@ -14,6 +14,11 @@ class FloatingPanel: NSPanel, NSWindowDelegate {
     private var fadeSettings: AppSettings?
     private var fadeTimer: Timer?
     private var isPointerInside = false
+    private var hostingView: NSView?
+    /// Double-clicking the bar along the top (not its buttons) calls this.
+    var onBarDoubleClick: (() -> Void)?
+    private var lastBarClick: (time: TimeInterval, point: NSPoint)?
+    private static let barHeight: CGFloat = 32
 
     init(autosaveName: String, size: NSSize, minSize: NSSize, isPinned: @escaping () -> Bool) {
         self.autosaveName = autosaveName
@@ -42,6 +47,7 @@ class FloatingPanel: NSPanel, NSWindowDelegate {
     /// `placement` (top-right by default).
     func setContent<Content: View>(_ view: Content, defaultPlacement placement: ((FloatingPanel) -> Void)? = nil) {
         let hosting = NSHostingView(rootView: view)
+        hostingView = hosting
         hosting.sizingOptions = [] // let the user resize freely
         // Our header replaces the (transparent) title bar. Without this, SwiftUI treats the
         // title-bar strip as a safe area and extends scroll views up under the header,
@@ -67,6 +73,10 @@ class FloatingPanel: NSPanel, NSWindowDelegate {
     /// A click outside the text being edited ends editing, so the window's own keys (⌫,
     /// arrows, ⌘Z) act on its content again rather than on that text.
     override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown, isBarDoubleClick(event) {
+            onBarDoubleClick?()
+            return
+        }
         if event.type == .leftMouseDown,
            let editor = firstResponder as? NSTextView,
            let hit = contentView?.superview?.hitTest(event.locationInWindow),
@@ -75,6 +85,27 @@ class FloatingPanel: NSPanel, NSWindowDelegate {
         }
         if event.type == .keyDown { wake() } // typing with the pointer elsewhere
         super.sendEvent(event)
+    }
+
+    /// Two clicks on the bar within the double-click time, wherever on it (but its buttons).
+    /// Counted here, not from the event's click count, so that a first click that only gave
+    /// the window the keys still counts: no third click needed.
+    private func isBarDoubleClick(_ event: NSEvent) -> Bool {
+        guard onBarDoubleClick != nil, let content = contentView else { return false }
+        let point = event.locationInWindow
+        // SwiftUI's controls hit-test as the hosting view itself; the bar's background doesn't.
+        guard point.y >= content.bounds.height - Self.barHeight,
+              let hit = content.superview?.hitTest(point), hit !== hostingView else {
+            lastBarClick = nil
+            return false
+        }
+        if let last = lastBarClick, event.timestamp - last.time <= NSEvent.doubleClickInterval,
+           hypot(point.x - last.point.x, point.y - last.point.y) <= 6 {
+            lastBarClick = nil
+            return true
+        }
+        lastBarClick = (event.timestamp, point)
+        return false
     }
 
     /// An unpinned panel is raised explicitly, since clicking it doesn't activate the app.

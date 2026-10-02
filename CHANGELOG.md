@@ -2,6 +2,11 @@
 
 What changed in each release of Sticky Calendar, newest first. Each section becomes that release's notes on GitHub (see RELEASING.md).
 
+## 0.24.1 — 2026-10-02
+
+### Fixed
+- **Double-clicking anywhere on the sticky's bar toggles compact mode**, also when the sticky wasn't focused (no third click needed). Only the bar's buttons — the date, Today/Now and ••• — keep their own clicks.
+
 ## 0.24.0 — 2026-10-02
 
 ### Added
