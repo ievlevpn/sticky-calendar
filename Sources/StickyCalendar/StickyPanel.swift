@@ -51,7 +51,8 @@ final class StickyPanel: FloatingPanel {
             onToggleCompact: { [weak self] in self?.toggleCompact() },
             onRemindersCompactHeight: { [weak self] height in self?.setRemindersCompactHeight(height) },
             onSettings: onSettings,
-            updateChecker: updateChecker
+            updateChecker: updateChecker,
+            onBarControlFrames: { [weak self] in self?.barControlFrames = $0 }
         ))
         onBarDoubleClick = { [weak self] in self?.toggleCompact() }
         widenOnceForTheFullHeader()

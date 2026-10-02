@@ -23,6 +23,7 @@ struct StickyContentView: View {
     let onRemindersCompactHeight: (CGFloat) -> Void
     let onSettings: () -> Void
     let updateChecker: UpdateChecker
+    let onBarControlFrames: ([CGRect]) -> Void
 
     @State private var contentHeight: CGFloat = 0
     /// Header plus the least timeline (or list of reminders) worth keeping when the note grows.
@@ -114,7 +115,8 @@ struct StickyContentView: View {
             compactReminderCount: reminderStore.openItems.count,
             isNoteVisible: notepad.isVisible, onToggleNote: toggleNote, onToggleReminders: onToggleReminders,
             onRefresh: refresh, isRefreshing: showsRemindersTab && reminderStore.isLoading,
-            onTogglePin: onTogglePin, onToggleCompact: onToggleCompact, onSettings: onSettings
+            onTogglePin: onTogglePin, onToggleCompact: onToggleCompact, onSettings: onSettings,
+            onControlFrames: onBarControlFrames
         )
         .zIndex(1) // its menu's label hangs over the content below
     }

@@ -14,9 +14,10 @@ class FloatingPanel: NSPanel, NSWindowDelegate {
     private var fadeSettings: AppSettings?
     private var fadeTimer: Timer?
     private var isPointerInside = false
-    private var hostingView: NSView?
     /// Double-clicking the bar along the top (not its buttons) calls this.
     var onBarDoubleClick: (() -> Void)?
+    /// The bar's buttons (window coordinates, top-left origin), which keep their own clicks.
+    var barControlFrames: [CGRect] = []
     private var lastBarClick: (time: TimeInterval, point: NSPoint)?
     private static let barHeight: CGFloat = 32
 
@@ -47,7 +48,6 @@ class FloatingPanel: NSPanel, NSWindowDelegate {
     /// `placement` (top-right by default).
     func setContent<Content: View>(_ view: Content, defaultPlacement placement: ((FloatingPanel) -> Void)? = nil) {
         let hosting = NSHostingView(rootView: view)
-        hostingView = hosting
         hosting.sizingOptions = [] // let the user resize freely
         // Our header replaces the (transparent) title bar. Without this, SwiftUI treats the
         // title-bar strip as a safe area and extends scroll views up under the header,
@@ -93,9 +93,10 @@ class FloatingPanel: NSPanel, NSWindowDelegate {
     private func isBarDoubleClick(_ event: NSEvent) -> Bool {
         guard onBarDoubleClick != nil, let content = contentView else { return false }
         let point = event.locationInWindow
-        // SwiftUI's controls hit-test as the hosting view itself; the bar's background doesn't.
-        guard point.y >= content.bounds.height - Self.barHeight,
-              let hit = content.superview?.hitTest(point), hit !== hostingView else {
+        // Not asked of hit-testing, which differs between SDKs (built with macOS 15's, much
+        // of the bar hit-tests as SwiftUI content): the header reports where its buttons are.
+        let fromTop = NSPoint(x: point.x, y: content.bounds.height - point.y)
+        guard fromTop.y <= Self.barHeight, !barControlFrames.contains(where: { $0.insetBy(dx: -2, dy: -2).contains(fromTop) }) else {
             lastBarClick = nil
             return false
         }

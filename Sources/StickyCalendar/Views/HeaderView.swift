@@ -21,6 +21,9 @@ struct HeaderView: View {
     let onTogglePin: () -> Void
     let onToggleCompact: () -> Void
     let onSettings: () -> Void
+    /// Where the bar's buttons are (window coordinates, top-left origin), so a double-click
+    /// on the bar anywhere else toggles compact mode (see FloatingPanel).
+    let onControlFrames: ([CGRect]) -> Void
 
     @State private var isMenuOpen = false
     @State private var isPickingDay = false
@@ -41,6 +44,7 @@ struct HeaderView: View {
         .padding(.trailing, 12)
         .frame(height: 32)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .onPreferenceChange(BarControlFrames.self) { frames in onControlFrames(frames) }
         // Dragging the bar moves the window; double-clicking it (see FloatingPanel) collapses or expands.
         .background(TitleBarArea())
         // SwiftUI extends the timeline's scroll view up under the header (it insets the
@@ -92,6 +96,7 @@ struct HeaderView: View {
         .buttonStyle(.plain)
         .focusable(false)
         .help(isToday ? "Showing today's reminders. Click for all lists." : "Showing all lists. Click for today's.")
+        .barControl()
     }
 
     /// The date as a button: click for the month picker, scroll to step a day at a time.
@@ -116,6 +121,7 @@ struct HeaderView: View {
         .buttonStyle(.plain)
         .focusable(false)
         .help("Choose a day (or scroll over the date; ←/→)")
+        .barControl()
         .overlay(ScrollWheelCatcher { steps in store.goToDay(offset: steps) })
         .popover(isPresented: $isPickingDay, arrowEdge: .bottom) {
             MonthPicker(selected: store.day) { day in
@@ -152,6 +158,7 @@ struct HeaderView: View {
         .buttonStyle(.plain)
         .focusable(false)
         .help(store.isViewingToday ? "Jump to now" : "Back to today")
+        .barControl()
         .transition(.opacity.combined(with: .scale(scale: 0.8)))
     }
 
@@ -272,6 +279,21 @@ struct TitleBarArea: NSViewRepresentable {
         override var mouseDownCanMoveWindow: Bool { false }
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
         override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+    }
+}
+
+/// The frames of the bar's buttons, in window coordinates (top-left origin).
+struct BarControlFrames: PreferenceKey {
+    static let defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) { value += nextValue() }
+}
+
+extension View {
+    /// Marks a button on the sticky's bar: double-clicks there don't toggle compact mode.
+    func barControl(_ isActive: Bool = true) -> some View {
+        background(GeometryReader { geometry in
+            Color.clear.preference(key: BarControlFrames.self, value: isActive ? [geometry.frame(in: .global)] : [])
+        })
     }
 }
 

@@ -53,6 +53,7 @@ struct UnfurlMenu: View {
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { toggleLock() }
             .onHover { overButton = $0; pointerMoved() }
+            .barControl()
             .background(alignment: .trailing) { capsule }
             .overlay(alignment: .topTrailing) { label }
     }
@@ -76,6 +77,7 @@ struct UnfurlMenu: View {
         .frame(width: capsuleWidth, height: 28, alignment: .trailing)
         .offset(x: 4) // overhangs the ••• button a little, as in the design
         .allowsHitTesting(isOpen)
+        .barControl(isOpen)
         .onHover { overCapsule = $0; pointerMoved() }
     }
 
